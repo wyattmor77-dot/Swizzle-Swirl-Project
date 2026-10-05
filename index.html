@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Food Factory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="viewport">
+    <div id="stage">
+      <!-- ================= RESTAURANT WORLD (the "camera" moves this) ================= -->
+      <div id="world">
+        <div class="wall">
+          <div class="wall-stripe"></div>
+          <div class="banner">POWERED BY ARTIFICIAL INTELLIGENCE</div>
+          <div class="menu-screen">
+            <div class="menu-title">TODAY'S PRINTABLE MENU</div>
+            <div id="menuList" class="menu-list"></div>
+          </div>
+          <div class="neon-ring"><span>FUTURE<br />OF<br />FOOD</span></div>
+          <div class="window"><div class="city"></div></div>
+          <div class="lab-wall">
+            <div class="lab-sign">3D FOOD SYNTHESIS LAB</div>
+            <div class="hex-pattern"></div>
+          </div>
+        </div>
+        <div class="floor"></div>
+        <div class="dining">
+          <div class="table t1"><div class="top"></div><div class="leg"></div></div>
+          <div class="stool s1"></div><div class="stool s2"></div>
+          <div class="plant"><div class="pot"></div><div class="leaves"></div></div>
+        </div>
+        <div id="customer" class="customer offstage">
+          <canvas id="customerCanvas" width="520" height="840"></canvas>
+          <div class="name-tag" id="customerName"></div>
+        </div>
+        <div id="bubble" class="bubble hidden"></div>
+        <div class="counter">
+          <div class="counter-top"></div>
+          <div class="counter-front">
+            <div class="counter-logo">AI FOOD FACTORY</div>
+            <div class="counter-sub">ORDER HERE • PRINTED FRESH</div>
+          </div>
+        </div>
+        <canvas id="plateCanvas" class="plate hidden" width="360" height="300"></canvas>
+        <canvas id="printerCanvas" width="1120" height="1480"></canvas>
+      </div>
+
+      <!-- cinematic letterbox -->
+      <div class="letterbox top"></div>
+      <div class="letterbox bottom"></div>
+
+      <!-- ================= HUD ================= -->
+      <header id="hud">
+        <div class="logo"><span class="logo-icon">🤖</span> AI FOOD FACTORY</div>
+        <div class="stats">
+          <div class="stat"><label>MONEY</label><span id="money">$0</span></div>
+          <div class="stat"><label>ORDERS</label><span id="ordersServed">0</span></div>
+          <div class="stat"><label>RATING</label><span id="avgRating">–</span></div>
+          <div class="stat level"><label id="levelTitle">TRAINEE OPERATOR</label><span id="levelNum">LVL 1</span></div>
+        </div>
+        <div class="hud-buttons">
+          <button class="btn small ghost" id="aboutBtn">ABOUT THE TECHNOLOGY</button>
+          <button class="btn small ghost" id="ethicsBtn">RESPONSIBLE AI</button>
+          <button class="btn small ghost icon" id="soundBtn" title="Toggle sound">🔊</button>
+        </div>
+      </header>
+
+      <!-- ================= ORDER TICKET ================= -->
+      <section id="ticket" class="panel ticket hidden">
+        <div class="ticket-head">
+          <div class="ticket-no" id="ticketNo">ORDER #001</div>
+          <div class="ticket-who" id="ticketWho">JACK'S ORDER</div>
+        </div>
+        <div class="ticket-food"><span id="ticketEmoji">🍔</span><span id="ticketFood">CHEESEBURGER</span></div>
+        <ul class="ticket-lines" id="ticketLines"></ul>
+        <div class="patience"><label>CUSTOMER PATIENCE</label><div class="bar"><div id="patienceFill"></div></div><span id="timer">0s</span></div>
+        <div class="ticket-status" id="ticketStatus">Waiting for you to start the order</div>
+        <button class="btn primary big" id="startOrderBtn">START ORDER ▶</button>
+        <button class="btn success big hidden" id="serveBtn">SERVE FOOD 🍽</button>
+      </section>
+
+      <!-- ================= CUSTOMIZER ================= -->
+      <section id="customizer" class="panel customizer hidden">
+        <div class="cz-head">
+          <h2>FOOD STATION</h2>
+          <p>1. Pick the food &nbsp; 2. Match the ticket &nbsp; 3. Print!</p>
+        </div>
+        <div class="food-grid" id="foodGrid"></div>
+        <div id="aiSuggest" class="ai-suggest hidden"></div>
+        <div class="groups" id="groups"><div class="empty-hint">⬆ Select the food the customer ordered</div></div>
+        <div class="cz-foot">
+          <div class="layer-count" id="layerCount"></div>
+          <button class="btn primary big glow" id="printBtn" disabled>🖨 PRINT FOOD</button>
+        </div>
+      </section>
+
+      <!-- ================= AI ANALYSIS PANEL (cutscene) ================= -->
+      <section id="aiPanel" class="ai-panel hidden">
+        <div class="ai-title"><span class="pulse-dot"></span> AI FOOD SYSTEM</div>
+        <ul id="aiSteps" class="ai-steps"></ul>
+        <div id="aiRecipe" class="ai-recipe hidden">
+          <div class="ai-recipe-title">AI RECIPE GENERATED</div>
+          <div class="ai-recipe-meta" id="aiRecipeMeta"></div>
+          <ol id="aiLayers"></ol>
+        </div>
+      </section>
+      <button id="skipBtn" class="btn skip hidden">SKIP ▶▶</button>
+
+      <!-- ================= AI INSIGHT ================= -->
+      <div id="insight" class="insight hidden"></div>
+
+      <!-- ================= RESULTS ================= -->
+      <div id="results" class="overlay hidden">
+        <div class="modal results-card">
+          <div class="results-left">
+            <canvas id="resultFood" width="360" height="300"></canvas>
+            <div class="quote" id="resultQuote"></div>
+          </div>
+          <div class="results-right">
+            <h2 id="resultTitle">ORDER COMPLETE</h2>
+            <div class="metric"><label>ORDER ACCURACY</label><div class="bar big"><div id="accFill"></div></div><span id="accText">0%</span></div>
+            <div class="metric"><label>SPEED</label><div class="bar"><div id="speedFill"></div></div><span id="speedText">0s</span></div>
+            <div class="metric"><label>CUSTOMER SATISFACTION</label><div class="stars" id="stars"></div></div>
+            <ul class="mistakes" id="mistakes"></ul>
+            <div class="earned"><label>EARNED</label><span id="earned">$0</span><small id="earnedBreakdown"></small></div>
+            <div class="learned" id="learned"></div>
+            <button class="btn primary big" id="nextBtn">NEXT CUSTOMER ▶</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= ABOUT ================= -->
+      <div id="aboutModal" class="overlay hidden">
+        <div class="modal info">
+          <button class="close" data-close>✕</button>
+          <h2>ABOUT THE TECHNOLOGY</h2>
+          <p class="lead"><b>AI Food Factory</b> demonstrates how artificial intelligence could personalize customer experiences and control an automated food-production system.</p>
+          <div class="flow">
+            <div class="flow-step">🧠 AI analyzes orders</div><div class="arrow">↓</div>
+            <div class="flow-step">📋 AI generates a recipe</div><div class="arrow">↓</div>
+            <div class="flow-step">🧩 AI determines the printing sequence</div><div class="arrow">↓</div>
+            <div class="flow-step">🖨 3D printer creates the food layer by layer</div><div class="arrow">↓</div>
+            <div class="flow-step">😋 Customer receives a personalized meal</div>
+          </div>
+          <div class="note">
+            <b>Important:</b> this is a <b>prototype simulation</b>. The "AI" uses programmed logic (rules, comparisons and simple pattern counting) to
+            show how a real AI system <i>could</i> work. It is not a trained machine-learning model, it needs no internet or API key, and it does
+            <b>not</b> claim the machine can actually produce edible food. Real food 3D printers exist today but are still experimental.
+          </div>
+          <div class="tech-grid">
+            <div><b>Order analysis</b><span>Compares the food you built with the customer's ticket.</span></div>
+            <div><b>Print planning</b><span>Turns each ingredient into a layer and picks the right cartridge.</span></div>
+            <div><b>Personalization</b><span>Spots patterns in a returning customer's past orders.</span></div>
+            <div><b>Built with</b><span>HTML, CSS and JavaScript — every food is drawn with code, no images.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= RESPONSIBLE AI ================= -->
+      <div id="ethicsModal" class="overlay hidden">
+        <div class="modal info">
+          <button class="close" data-close>✕</button>
+          <h2>RESPONSIBLE AI</h2>
+          <p class="lead">How a real AI restaurant should behave:</p>
+          <div class="ethics-grid">
+            <div class="ethic"><div class="e-icon">🔒</div><b>PRIVACY</b><span>Customer preferences should only be collected with permission. In this game, insights are shown only for customers who opted in to preference memory.</span></div>
+            <div class="ethic"><div class="e-icon">⚖️</div><b>BIAS</b><span>AI recommendations should be tested to avoid unfair treatment or assumptions about people. Our AI only looks at what a customer actually ordered — never their appearance.</span></div>
+            <div class="ethic"><div class="e-icon">©️</div><b>COPYRIGHT</b><span>AI-generated content should respect creators and copyrighted material. Every character and food in this prototype is original and drawn with code.</span></div>
+            <div class="ethic"><div class="e-icon">🧑‍🔧</div><b>HUMAN OVERSIGHT</b><span>Important decisions should still be reviewed by people. Here the human operator builds the order, and the AI only flags differences — it never overrides you.</span></div>
+            <div class="ethic"><div class="e-icon">👷</div><b>WORKFORCE IMPACT</b><span>AI can automate tasks, but companies should consider how automation affects workers — for example by retraining staff to run and maintain the machines.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= START SCREEN ================= -->
+      <div id="startScreen" class="overlay start">
+        <div class="start-card">
+          <div class="start-badge">SCHOOL PROJECT PROTOTYPE</div>
+          <h1>AI FOOD FACTORY</h1>
+          <p class="tagline">THE FUTURE OF FOOD IS HERE.</p>
+          <canvas id="startFood" width="420" height="300"></canvas>
+          <button class="btn primary huge glow" id="startBtn">START GAME ▶</button>
+          <div class="start-links">
+            <button class="btn ghost" id="aboutBtn2">ABOUT THE TECHNOLOGY</button>
+            <button class="btn ghost" id="ethicsBtn2">RESPONSIBLE AI</button>
+          </div>
+          <p class="how">Take orders ➜ customize the food ➜ watch the AI 3D printer build it ➜ serve &amp; earn!</p>
+        </div>
+      </div>
+
+      <div id="toast" class="toast hidden"></div>
+    </div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/printer.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
