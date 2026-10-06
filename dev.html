@@ -9,6 +9,15 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <!-- Shown only if the browser refuses to run the game's code (the first script removes it) -->
+  <div id="jsBlocked" style="position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;padding:24px;background:#071423;color:#fff;font:700 20px/1.5 Arial,sans-serif;text-align:center">
+    <div style="max-width:640px">
+      <div style="font-size:34px;margin-bottom:12px">⚠️ The game can't start</div>
+      Your browser is blocking the game's code, so the buttons won't work.<br />
+      This often happens on school computers when a file is opened from Downloads.<br /><br />
+      Try: open this file in <b>Chrome</b> or <b>Edge</b>, make sure you opened <b>index.html</b> from the <b>extracted</b> folder, or use the online link from the README.
+    </div>
+  </div>
   <div id="viewport">
     <div id="stage">
       <!-- ================= THE REAL WORLD (only seen in the print-it-IRL cutscene) ================= -->
@@ -252,6 +261,7 @@
     </div>
   </div>
 
+  <script>var jb = document.getElementById("jsBlocked"); if (jb) jb.remove();</script>
   <script src="js/compat.js"></script>
   <script src="js/data.js"></script>
   <script src="js/renderer.js"></script>

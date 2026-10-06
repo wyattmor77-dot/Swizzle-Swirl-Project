@@ -12,6 +12,10 @@ Then imagine you could actually **eat** the food you see in a game. After you se
 
 ## ▶ How to run
 
+**Easiest:** play it online at https://claude.ai/artifact/XPUBJHkKP3iyM4zhkjbcjg (nothing to download).
+
+**Offline:**
+
 No install, no internet, no API key, no login.
 
 1. Download this repository: **Code ▸ Download ZIP**, then unzip it.
