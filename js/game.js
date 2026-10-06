@@ -604,6 +604,7 @@ document.addEventListener('keydown', (e) => {
   if (n >= 1 && n <= STATIONS.length && ['cooking', 'ready'].includes(Game.phase)) goStation(STATIONS[n - 1].id);
 });
 
+{ const jb = document.getElementById('jsBlocked'); if (jb) jb.remove(); }
 renderMenu();
 renderTray();
 requestAnimationFrame(loop);
