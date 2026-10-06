@@ -1,43 +1,27 @@
 /* =========================================================
    AI FOOD FACTORY — GAME CONTROLLER
-   Game loop:  customer arrives → order ticket → customize →
-   AI analysis + 3D print cutscene → serve → reaction →
-   score → next customer.
+   customer arrives → ticket → TAKE ORDER → cook at the
+   stations → AI quality check → 3D printer synthesis →
+   serve → reaction → score → next customer
    ========================================================= */
 const $ = (id) => document.getElementById(id);
-const PATIENCE_SECONDS = 75;
 
 const Game = {
   phase: 'start',
-  money: 0,
-  served: 0,
-  ratings: [],
-  history: [],      // { customerId, foodId, tags, avoided, stars } — used by the AI insight system
-  orderNo: 0,
-  level: 1,
-  visitIdx: 0,
-  lastCustomerId: null,
-  customer: null,
-  order: null,
-  made: null,
-  build: null,
-  job: null,
-  elapsed: 0,
-  mood: 'neutral',
-  insight: null,
-  impatientShown: false,
+  money: 0, served: 0, ratings: [], history: [], orderNo: 0, level: 1, visitIdx: 0, lastCustomerId: null,
+  customer: null, order: null, insight: null, elapsed: 0, mood: 'neutral', job: null, printed: null,
+  view: 'front', chatterT: 0, impatientShown: false, leveledUp: false, patience: 90,
 };
 
 const printer = new Printer($('printerCanvas'));
 const customerCtx = $('customerCanvas').getContext('2d');
 customerCtx.scale(2, 2);
+Kitchen.init();
 
 /* ---------------- stage scaling (responsive) ---------------- */
 function fitStage() {
   const s = Math.min(window.innerWidth / 1600, window.innerHeight / 900);
-  const x = (window.innerWidth - 1600 * s) / 2;
-  const y = (window.innerHeight - 900 * s) / 2;
-  $('stage').style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+  $('stage').style.transform = `translate(${(window.innerWidth - 1600 * s) / 2}px, ${(window.innerHeight - 900 * s) / 2}px) scale(${s})`;
 }
 window.addEventListener('resize', fitStage);
 fitStage();
@@ -55,9 +39,10 @@ const CAM = {
 /* ---------------- helpers ---------------- */
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const unlockedFoods = () => FOODS.filter((f) => f.unlock <= Game.level);
-function show(el) { el.classList.remove('hidden'); }
-function hide(el) { el.classList.add('hidden'); }
+const show = (el) => el.classList.remove('hidden');
+const hide = (el) => el.classList.add('hidden');
+const pct = (v) => `${Math.round(v * 100)}%`;
+const STATION_UNLOCK = { front: 1, grill: 1, prep: 1, fryer: 2, drinks: 2, pizza: 3, taco: 4, dessert: 6 };
 
 function say(text, ms) {
   const b = $('bubble');
@@ -66,7 +51,6 @@ function say(text, ms) {
   clearTimeout(say.timer);
   if (ms) say.timer = setTimeout(() => hide(b), ms);
 }
-
 function toast(html, ms = 2600) {
   const t = $('toast');
   t.innerHTML = html;
@@ -74,365 +58,477 @@ function toast(html, ms = 2600) {
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => hide(t), ms);
 }
+Game.notify = (text) => {
+  const n = document.createElement('div');
+  n.className = 'note-pop';
+  n.textContent = text;
+  $('notify').appendChild(n);
+  while ($('notify').children.length > 3) $('notify').firstChild.remove();
+  setTimeout(() => n.remove(), 3200);
+};
 
 function updateHud() {
   $('money').textContent = `$${Game.money.toLocaleString()}`;
   $('ordersServed').textContent = Game.served;
   $('avgRating').textContent = Game.ratings.length ? `★ ${(Game.ratings.reduce((a, b) => a + b, 0) / Game.ratings.length).toFixed(1)}` : '–';
-  const lvl = LEVELS[Game.level - 1];
+  const lvl = LEVELS[Game.level - 1], next = LEVELS[Game.level];
   $('levelNum').textContent = `LVL ${lvl.level}`;
   $('levelTitle').textContent = lvl.title.toUpperCase();
+  $('xpFill').style.width = next ? `${((Game.served - lvl.ordersNeeded) / (next.ordersNeeded - lvl.ordersNeeded)) * 100}%` : '100%';
   renderMenu();
 }
-
 function renderMenu() {
-  $('menuList').innerHTML = FOODS.map((f) => `<div class="${f.unlock > Game.level ? 'locked' : ''}"><span>${f.emoji} ${f.name}</span><b>${f.unlock > Game.level ? '🔒' : '$' + f.price * 10}</b></div>`).join('');
+  $('menuList').innerHTML = FOODS.map((f) => `<div class="${f.unlock > Game.level ? 'locked' : ''}"><span>${f.emoji} ${f.name}</span><b>${f.unlock > Game.level ? '🔒' : '$' + f.price * 10}</b></div>`).join('')
+    + `<div class="${Game.level < 2 ? 'locked' : ''}"><span>🍟 Fries · 🥤 Drinks</span><b>${Game.level < 2 ? '🔒' : '$50/$30'}</b></div>`;
 }
 
-/* ---------------- customer ---------------- */
-function drawCustomerNow(t) {
-  if (Game.customer) drawCustomer(customerCtx, Game.customer.look, Game.mood, t);
-}
-
-function chooseCustomer() {
-  let id;
-  if (Game.visitIdx < SCRIPTED_VISITS.length) id = SCRIPTED_VISITS[Game.visitIdx];
-  else {
-    const returning = [...new Set(Game.history.map((h) => h.customerId))].filter((c) => c !== Game.lastCustomerId);
-    const pool = CUSTOMERS.filter((c) => c.id !== Game.lastCustomerId);
-    id = returning.length && Math.random() < 0.45 ? pick(returning) : pick(pool).id;
+/* =========================================================
+   CUSTOMERS & ORDERS
+   ========================================================= */
+function chooseVisit() {
+  if (Game.visitIdx < SCRIPTED_VISITS.length) {
+    const v = SCRIPTED_VISITS[Game.visitIdx++];
+    return { customer: CUSTOMER_BY_ID[v.c], food: FOOD_BY_ID[v.food], sel: v.sel, side: !!v.side, drink: !!v.drink };
   }
   Game.visitIdx++;
-  Game.lastCustomerId = id;
-  return CUSTOMER_BY_ID[id];
-}
-
-function chooseFood(customer) {
-  const open = unlockedFoods();
-  // after a level-up, show off the newly unlocked foods
+  const returning = [...new Set(Game.history.map((h) => h.customerId))].filter((c) => c !== Game.lastCustomerId);
+  const pool = CUSTOMERS.filter((c) => c.id !== Game.lastCustomerId);
+  const customer = returning.length && Math.random() < 0.45 ? CUSTOMER_BY_ID[pick(returning)] : pick(pool);
+  const open = FOODS.filter((f) => f.unlock <= Game.level);
   const fresh = open.filter((f) => f.unlock === Game.level && Game.level > 1 && !Game.history.some((h) => h.foodId === f.id));
-  if (fresh.length && Math.random() < 0.6) return pick(fresh);
   const favs = open.filter((f) => customer.favs.includes(f.id));
-  return pick(favs.length ? favs : open);
+  const food = fresh.length && Math.random() < 0.6 ? pick(fresh) : pick(favs.length ? favs : open);
+  const comboFood = ['burger', 'hotdog', 'chickensandwich', 'nuggets', 'sandwich'].includes(food.id);
+  return { customer, food, side: Game.level >= 2 && comboFood && Math.random() < 0.5, drink: Game.level >= 2 && Math.random() < 0.55 };
 }
 
 async function nextCustomer() {
   Game.phase = 'arriving';
-  const customer = chooseCustomer();
-  const food = chooseFood(customer);
-  const sel = AI.generateOrder(customer, food, Game.level);
+  const v = chooseVisit();
+  const { customer, food } = v;
+  const sel = v.sel ? JSON.parse(JSON.stringify(v.sel)) : AI.generateOrder(customer, food, Game.level);
   Game.orderNo++;
   Game.customer = customer;
+  Game.lastCustomerId = customer.id;
   Game.mood = 'neutral';
-  Game.order = { customerId: customer.id, customerName: customer.name, foodId: food.id, sel, name: AI.orderName(food, sel) };
-  Game.made = { foodId: null, sel: null };
-  Game.elapsed = 0;
-  Game.impatientShown = false;
+  Game.order = {
+    customerId: customer.id, customerName: customer.name, foodId: food.id, sel, name: AI.orderName(food, sel),
+    side: v.side ? { id: 'fries', season: customer.prefs.includes('spicy') ? 'cajun' : Math.random() < 0.8 ? 'salt' : 'plain' } : null,
+    drink: v.drink ? pick(DRINKS).id : null,
+  };
+  Game.elapsed = 0; Game.printed = null; Game.mainResult = null; Game.impatientShown = false; Game.chatterT = 0;
+  Game.patience = 60 + resolveLayers(food, sel).filter((id) => INGREDIENTS[id].cook).length * 25 + (v.side ? 25 : 0) + (v.drink ? 15 : 0);
   Game.insight = AI.insightFor(customer.id, Game.history);
+  Kitchen.resetOrder();
+  renderTray();
   $('customerName').textContent = customer.name;
 
   const el = $('customer');
   el.classList.add('walking');
   el.classList.remove('offstage');
+  const steps = setInterval(() => Sound.play('step'), 340);
   await wait(1450);
+  clearInterval(steps);
   el.classList.remove('walking');
   Sound.play('arrive');
 
   const returning = Game.history.some((h) => h.customerId === customer.id);
-  const lines = customer.look.type === 'robot' ? DIALOGUE.robot : returning ? DIALOGUE.returning : DIALOGUE.greet;
-  say(pick(lines).replace('{food}', Game.order.name.toLowerCase()).replace('{FOOD}', Game.order.name.toUpperCase()));
+  const line = returning && customer.look.type !== 'robot' ? pick([...DIALOGUE.returning, ...customer.lines.greet]) : pick(customer.lines.greet);
+  let text = line.replace('{food}', Game.order.name.toLowerCase());
+  const extras = [Game.order.side && 'fries', Game.order.drink && `a ${DRINK_BY_ID[Game.order.drink].name}`].filter(Boolean);
+  if (extras.length) text += ` With ${extras.join(' and ')}!`;
+  say(text);
   renderTicket();
+  setRightCol('front');
+  show($('rightCol'));
+  show($('takeOrderBtn')); hide($('serveBtn'));
   Game.phase = 'ordering';
   if (Game.insight) setTimeout(showInsight, 700);
 }
 
 function showInsight() {
   const ins = Game.insight;
-  if (!ins || !['ordering', 'customizing'].includes(Game.phase)) return;
-  const el = $('insight');
-  el.innerHTML = `
+  if (!ins || !['ordering', 'cooking'].includes(Game.phase)) return;
+  $('insight').innerHTML = `
     <span class="x" onclick="hide($('insight'))">✕</span>
     <h4>🧠 AI CUSTOMER INSIGHT</h4>
     <p><b>${Game.customer.name}</b> has visited ${ins.visits} time${ins.visits > 1 ? 's' : ''} before.</p>
     <p>This customer ${ins.text}.</p>
     <div class="rec">Recommended customization: ${ins.rec}</div>
-    <div class="consent">🔒 Preference memory is ON — ${Game.customer.name} gave permission to remember past orders.</div>`;
-  if (Game.phase === 'ordering') show(el);
-  Sound.play('recipe');
+    <div class="consent">🔒 Preference memory is ON — ${Game.customer.name} gave permission to remember past orders. Look for <b>AI PICK</b> tags at the stations.</div>`;
+  show($('insight'));
+  Sound.play('confirm');
+  clearTimeout(showInsight.timer);
+  showInsight.timer = setTimeout(() => hide($('insight')), 9000);
 }
 
 /* ---------------- ticket ---------------- */
 function renderTicket() {
-  const o = Game.order;
-  const food = FOOD_BY_ID[o.foodId];
+  const o = Game.order, food = FOOD_BY_ID[o.foodId];
   $('ticketNo').textContent = `ORDER #${String(Game.orderNo).padStart(3, '0')}`;
-  $('ticketWho').textContent = `${o.customerName.toUpperCase()}'S ORDER`;
+  $('ticketWho').textContent = o.customerName.toUpperCase();
   $('ticketEmoji').textContent = food.emoji;
   $('ticketFood').textContent = o.name.toUpperCase();
-  $('ticketLines').innerHTML = AI.ticketLines(food, o.sel).map((l) => `<li class="${l.ok ? 'yes' : 'no'}">${l.text}</li>`).join('');
-  $('ticketStatus').textContent = 'Click START ORDER to build this food';
-  show($('startOrderBtn'));
-  hide($('serveBtn'));
+  $('ticketRows').innerHTML = AI.ticketRows(o).map((r) => `<div class="t-row"><label>${r.label}:</label><div>${r.values.map((v) => `<span class="${v.no ? 'no' : ''}">${v.text}</span>`).join('')}</div></div>`).join('');
+  updateTicketStatus(true);
   $('patienceFill').style.width = '100%';
-  show($('ticket'));
+  $('patienceFill').classList.remove('low');
+  $('timer').textContent = '0s';
+  $('ticketTime').textContent = '00:00';
+}
+function updateTicketStatus(force) {
+  const o = Game.order;
+  if (!o) return;
+  const mainState = Game.printed ? 'done' : Kitchen.main ? 'qc' : '';
+  const sideDone = !!Kitchen.side, drinkDone = !!Kitchen.drinkOut;
+  const sig = `${Game.orderNo}|${mainState}|${sideDone}|${drinkDone}`;
+  if (!force && sig === updateTicketStatus.sig) return;
+  updateTicketStatus.sig = sig;
+  $('ticketMainCheck').className = mainState === 'done' ? 'chk on' : 'chk';
+  let h = '';
+  if (o.side) h += `<div class="t-extra ${sideDone ? 'done' : ''}"><label>SIDE:</label><span>🍟 FRIES (${SIDES.fries.seasons.find((s) => s.id === o.side.season).label.toUpperCase()})</span><i>${sideDone ? '✓' : ''}</i></div>`;
+  if (o.drink) h += `<div class="t-extra ${drinkDone ? 'done' : ''}"><label>DRINK:</label><span>🥤 ${DRINK_BY_ID[o.drink].name.toUpperCase()}</span><i>${drinkDone ? '✓' : ''}</i></div>`;
+  $('ticketExtras').innerHTML = h;
+}
+function setRightCol(mode) {
+  const el = $('rightCol');
+  const hidden = el.classList.contains('hidden');
+  el.className = `right-col ${mode}${hidden ? ' hidden' : ''}`;
 }
 
-/* ---------------- customizer ---------------- */
-function openCustomizer() {
-  Sound.play('click');
-  Game.phase = 'customizing';
+/* =========================================================
+   STATIONS & NAVIGATION
+   ========================================================= */
+function takeOrder() {
+  if (Game.phase !== 'ordering') return;
+  Sound.play('orderBell');
+  hide($('takeOrderBtn'));
   hide($('bubble'));
-  hide($('insight'));
-  hide($('startOrderBtn'));
-  $('ticketStatus').textContent = 'Build the food in the Food Station ◀';
-  renderFoodGrid();
-  renderGroups();
-  show($('customizer'));
+  Game.phase = 'cooking';
+  Game.elapsed = 0;
+  show($('stationBar'));
+  const first = STATIONS.find((s) => s.id !== 'front' && stationStatus(s.id).needed);
+  goStation(first ? first.id : 'prep');
+  Game.notify('🤖 AI: the stations you need are highlighted below.');
 }
 
-function renderFoodGrid() {
-  $('foodGrid').innerHTML = FOODS.map((f) => {
-    const locked = f.unlock > Game.level;
-    const selected = Game.made.foodId === f.id;
-    return `<div class="food-card ${locked ? 'locked' : ''} ${selected ? 'selected' : ''}" data-food="${f.id}" title="${locked ? 'Unlocks at level ' + f.unlock : f.name}">
-      <span class="em">${f.emoji}</span>${locked ? 'LVL ' + f.unlock : f.name}</div>`;
+function goStation(id) {
+  if (Game.phase === 'printing' || STATION_UNLOCK[id] > Game.level) { Sound.play('error'); return; }
+  if (!['cooking', 'ready', 'serving'].includes(Game.phase) && id !== 'front') return;
+  if (Game.view !== id) Sound.play('tab');
+  Game.view = id;
+  Kitchen.show(id);
+  if (id === 'front') { hide($('kitchen')); setRightCol('front'); }
+  else { show($('kitchen')); setRightCol('docked'); hide($('insight')); }
+  renderStationBar(true);
+}
+function goStationRaw(id) { Game.view = id; Kitchen.show(id); hide($('kitchen')); setRightCol('front'); renderStationBar(true); }
+
+// What does the current order still need at each station?
+function stationStatus(id) {
+  const o = Game.order;
+  const st = { needed: false, done: false, busy: false, label: '' };
+  if (!o || !['cooking', 'ready', 'serving'].includes(Game.phase)) return st;
+  const food = FOOD_BY_ID[o.foodId];
+  const req = resolveLayers(food, o.sel);
+  const mainDone = !!(Kitchen.main || Game.printed);
+  const left = Kitchen.neededCooked();
+  if (id === 'grill') {
+    const any = req.some((x) => INGREDIENTS[x].cook === 'grill');
+    st.needed = any && !mainDone && left.some((x) => INGREDIENTS[x].cook === 'grill');
+    st.done = any && !st.needed;
+    st.busy = Kitchen.grill.on && Kitchen.grill.slots.some(Boolean);
+  } else if (id === 'fryer') {
+    const any = req.some((x) => INGREDIENTS[x].cook === 'fryer');
+    st.needed = (any && !mainDone && left.some((x) => INGREDIENTS[x].cook === 'fryer')) || (!!o.side && !Kitchen.side);
+    st.done = (any || !!o.side) && !st.needed;
+    st.busy = Kitchen.fryer.baskets.some((b) => b.item && b.down);
+  } else if (id === food.station) {
+    st.needed = !mainDone;
+    st.done = mainDone;
+    st.busy = (id === 'pizza' && Kitchen.pizza.stage === 'oven') || (id === 'taco' && !!Kitchen.warmer);
+  } else if (id === 'drinks') {
+    st.needed = !!o.drink && !Kitchen.drinkOut;
+    st.done = !!o.drink && !!Kitchen.drinkOut;
+  } else if (id === 'front') {
+    st.needed = Game.phase === 'ready';
+    st.label = Game.phase === 'ready' ? 'SERVE!' : '';
+  }
+  return st;
+}
+
+function renderStationBar(force) {
+  const html = STATIONS.map((s, i) => {
+    const locked = STATION_UNLOCK[s.id] > Game.level;
+    const st = stationStatus(s.id);
+    const chip = locked ? `🔒 LVL ${STATION_UNLOCK[s.id]}` : st.label || (st.busy ? '🔥 COOKING' : st.needed ? 'NEEDED' : st.done ? '✓ DONE' : '');
+    const cls = [Game.view === s.id ? 'active' : '', locked ? 'locked' : '', st.needed ? 'needed' : '', st.done ? 'done' : '', st.busy ? 'busy' : ''].join(' ');
+    return `<button class="st-btn ${cls}" data-station="${s.id}" title="${s.desc} (key ${i + 1})"><span class="st-icon">${s.icon}</span><span class="st-label">${s.label}</span>${chip ? `<span class="st-chip">${chip}</span>` : ''}</button>`;
   }).join('');
+  if (force || html !== renderStationBar.last) { $('stationBar').innerHTML = html; renderStationBar.last = html; }
 }
 
-function selectFood(id) {
-  const food = FOOD_BY_ID[id];
-  if (!food || food.unlock > Game.level) return;
-  Sound.play('toggle');
-  Game.made = { foodId: id, sel: AI.defaultSelection(food) };
-  renderFoodGrid();
-  renderGroups();
-}
-
-function renderGroups() {
-  const box = $('groups');
-  const sug = $('aiSuggest');
-  if (!Game.made.foodId) {
-    box.innerHTML = '<div class="empty-hint">⬆ Select the food the customer ordered</div>';
-    hide(sug);
-    $('printBtn').disabled = true;
-    $('layerCount').textContent = '';
-    return;
+/* ---------------- AI assist panel ---------------- */
+function aiAdvice() {
+  const o = Game.order;
+  if (!o) return { next: '', tips: [] };
+  const food = FOOD_BY_ID[o.foodId];
+  const tips = [];
+  let next = '';
+  if (Game.phase === 'ordering') return { next: 'Read the ticket, then press TAKE ORDER.', tips: [`I'll guide you through the ${o.name.toLowerCase()}.`, 'HUMANS CREATE · AI ASSISTS · AUTOMATION FINISHES'] };
+  if (Game.phase === 'printing') return { next: 'The 3D printer is finishing your food...', tips: [] };
+  if (Game.phase === 'serving' || Game.phase === 'results') return { next: 'Serving the customer...', tips: [] };
+  if (Game.phase === 'ready') {
+    const left = [o.side && !Kitchen.side && 'fries at the FRYER', o.drink && !Kitchen.drinkOut && `a ${DRINK_BY_ID[o.drink].name} at DRINKS`].filter(Boolean);
+    return { next: left.length ? `Main is printed! Still needed: ${left.join(' and ')}.` : 'Everything is ready — SERVE the order at the FRONT!', tips: ['Serving fast earns a speed bonus.'] };
   }
-  const food = FOOD_BY_ID[Game.made.foodId];
-  const tag = Game.insight && Game.insight.tag;
-  box.innerHTML = food.groups.map((g) => `
-    <div class="group">
-      <h3>${g.label.toUpperCase()} <small>(${g.type === 'single' ? 'pick one' : 'pick any'})</small></h3>
-      <div class="opts">${g.options.map((o) => {
-        const on = g.type === 'single' ? Game.made.sel[g.id] === o.id : Game.made.sel[g.id].includes(o.id);
-        const ai = tag && o.tags.includes(tag) ? '<span class="ai-badge">AI PICK</span>' : '';
-        return `<button class="opt ${g.type === 'multi' ? 'multi' : ''} ${on ? 'on' : ''}" data-group="${g.id}" data-opt="${o.id}">${o.label}${ai}</button>`;
-      }).join('')}</div>
-    </div>`).join('');
-  const hasTagged = tag && food.groups.some((g) => g.options.some((o) => o.tags.includes(tag)));
-  if (hasTagged) {
-    sug.innerHTML = `🧠 <span><b>AI suggests:</b> ${Game.insight.rec} for ${Game.customer.name} (learned from past orders)</span><button class="btn primary" id="applyAi">APPLY</button>`;
-    show(sug);
-  } else hide(sug);
-  const n = buildFood(food, Game.made.sel).layers.length;
-  $('layerCount').textContent = `🧱 ${n} layers to print`;
-  $('printBtn').disabled = false;
-}
-
-function toggleOption(groupId, optId) {
-  const food = FOOD_BY_ID[Game.made.foodId];
-  const g = food.groups.find((x) => x.id === groupId);
-  if (g.type === 'single') Game.made.sel[groupId] = optId;
-  else {
-    const cur = Game.made.sel[groupId];
-    Game.made.sel[groupId] = cur.includes(optId) ? cur.filter((x) => x !== optId) : g.options.map((o) => o.id).filter((id) => id === optId || cur.includes(id));
+  if (Kitchen.qc) return { next: 'Scanning your food for mistakes...', tips: ['You can fix problems before printing.'] };
+  const left = Kitchen.neededCooked();
+  const onGrill = Kitchen.grill.slots.filter(Boolean);
+  const inFryer = Kitchen.fryer.baskets.filter((b) => b.item);
+  if (onGrill.length) {
+    const it = onGrill[0], ing = INGREDIENTS[it.id];
+    const v = it.s[it.down];
+    next = !Kitchen.grill.on ? 'Turn on the grill! 🔥' : it.flips === 0 ? (v >= 0.9 ? `FLIP the ${ing.name} now!` : `Cooking side 1 of the ${ing.name} (${Math.round(Math.min(v, 1) * 100)}%)`) : it.s[0] >= 0.9 && it.s[1] >= 0.9 ? `TAKE the ${ing.name} off the grill!` : `Cooking side 2 (${Math.round(Math.min(v, 1) * 100)}%)`;
+    tips.push(`Recommended: ~${ing.time}s per side, flip once in the green zone.`);
+  } else if (inFryer.length) {
+    const b = inFryer[0], ing = INGREDIENTS[b.item.id];
+    next = !b.down ? `Drop the basket to fry the ${ing.name}.` : b.item.cook >= 0.9 ? `LIFT the basket — ${ing.name} is ready!` : `Frying ${ing.name} (${Math.round(b.item.cook * 100)}%)`;
+    tips.push(`Recommended fry time: ~${ing.time}s.`);
+  } else if (left.length) {
+    const ing = INGREDIENTS[left[0]];
+    next = `Cook a ${ing.raw || ing.name} at the ${ing.cook.toUpperCase()}.`;
+    tips.push(ing.cook === 'grill' ? `Recommended: ~${ing.time}s per side, flip once.` : `Recommended fry time: ~${ing.time}s, lift in the green zone.`);
+  } else if (Kitchen.dump) {
+    next = 'Season and box the fries at the FRY STATION.';
+  } else if (food.station === 'pizza') {
+    const p = Kitchen.pizza;
+    next = { empty: 'Place a dough ball at the PIZZA station.', ball: 'Stretch the dough until it is round.', top: 'Add sauce, cheese and toppings, then bake.', oven: `Baking... take it out in the green zone (~${INGREDIENTS.dough.time}s).`, baked: 'Press FINISH for the AI quality check.' }[p.stage];
+  } else if (food.station === 'taco' && !Kitchen.builds.taco.foodId) {
+    next = Kitchen.warmer ? 'Move the warm shell to the holder.' : 'Warm a taco shell at the TACO station.';
+    tips.push(`Shells need about ${INGREDIENTS.hardShell.time}s on the warmer.`);
+  } else {
+    const b = Kitchen.builds[food.station];
+    next = b && b.items.length ? `Keep building at ${food.station.toUpperCase()}, then press FINISH.` : `Build the ${food.name.toLowerCase()} at the ${food.station.toUpperCase()} station.`;
   }
-  Sound.play('toggle');
-  renderGroups();
+  if (o.side && !Kitchen.side && !Kitchen.dump && !inFryer.some((b) => b.item.id === 'friesReg')) tips.push(`Side order: fry the fries (${SIDES.fries.seasons.find((s) => s.id === o.side.season).label}).`);
+  if (o.drink && !Kitchen.drinkOut) tips.push(`Pour a ${DRINK_BY_ID[o.drink].name} at DRINKS — stop at the line.`);
+  tips.push(`Stack order: ${AI.recommendedStack(o).join(' → ')}`);
+  if (Game.insight) tips.push(`Personal touch: ${o.customerName} ${Game.insight.text}.`);
+  return { next, tips };
+}
+function renderAiAssist() {
+  const a = aiAdvice();
+  const html = `<div class="aa-next"><label>NEXT STEP</label>${a.next}</div>${a.tips.slice(0, 3).map((t) => `<div class="aa-tip">💡 ${t}</div>`).join('')}`;
+  if (html !== renderAiAssist.last) { $('aiAssistBody').innerHTML = html; renderAiAssist.last = html; }
 }
 
-function applyAiSuggestion() {
-  const food = FOOD_BY_ID[Game.made.foodId];
-  const tag = Game.insight.tag;
-  for (const g of food.groups) {
-    const tagged = g.options.filter((o) => o.tags.includes(tag));
-    if (!tagged.length) continue;
-    if (g.type === 'single') Game.made.sel[g.id] = tagged[tagged.length - 1].id;
-    else Game.made.sel[g.id] = g.options.map((o) => o.id).filter((id) => Game.made.sel[g.id].includes(id) || tagged.some((t) => t.id === id));
-  }
-  Sound.play('recipe');
-  renderGroups();
+/* ---------------- serving tray on the counter ---------------- */
+function renderTray() {
+  const cv = $('trayCanvas'), c = cv.getContext('2d');
+  c.setTransform(2, 0, 0, 2, 0, 0);
+  c.clearRect(0, 0, 420, 160);
+  c.fillStyle = 'rgba(10,30,60,0.25)'; c.beginPath(); c.ellipse(210, 140, 200, 16, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#1f55cc'; c.beginPath(); c.roundRect(14, 108, 392, 30, 16); c.fill();
+  c.fillStyle = '#5fa0ff'; c.beginPath(); c.roundRect(20, 100, 380, 30, 14); c.fill();
+  c.fillStyle = 'rgba(255,255,255,0.4)'; c.fillRect(40, 104, 340, 3);
+  if (Kitchen.side) drawFood(c, buildSideFries(Kitchen.side), 70, 120, 0.42);
+  if (Game.servedMain) drawFood(c, Game.servedMain, 205, 118, fitScale(Game.servedMain, 170, 110) * 0.95);
+  if (Kitchen.drinkOut) drawDrink(c, 350, 124, 0.62, DRINK_BY_ID[Kitchen.drinkOut.id], Kitchen.drinkOut.fill, { lid: true });
 }
+Game.onItemReady = () => { renderTray(); updateTicketStatus(true); };
+Game.onQC = () => { renderStationBar(true); };
 
-/* ---------------- printing cutscene ---------------- */
-function startPrint() {
-  if (!Game.made.foodId || Game.phase !== 'customizing') return;
-  Sound.play('startup');
+/* =========================================================
+   3D PRINTER SYNTHESIS CUTSCENE
+   ========================================================= */
+Game.startPrint = function () {
+  const main = Kitchen.main;
+  if (!main) return;
+  const food = FOOD_BY_ID[main.foodId];
+  const qcScore = AI.qualityCheck(Game.order, main).score;
+  const build = buildFromItems(food, main.items);
+  const plan = AI.synthesisPlan(Game.order, main, build, qcScore, Game.insight);
+  Game.mainResult = { ...main };
+  if (main.station === 'pizza') Kitchen.pizza = { stage: 'empty', stretch: 0, items: [], bake: 0, wobble: 0 };
+  else Kitchen.builds[main.station] = { foodId: null, items: [] };
+  Kitchen.main = null;
   Game.phase = 'printing';
-  const food = FOOD_BY_ID[Game.made.foodId];
-  Game.build = buildFood(food, Game.made.sel);
-  Game.printSeconds = Game.elapsed;
-  const analysis = AI.analyze(Game.order, Game.made, Game.build);
-  hide($('customizer'));
+  goStationRaw('front');
   hide($('insight'));
-  $('ticketStatus').textContent = 'AI printer is working...';
   $('stage').classList.add('cinematic');
+  Sound.setMusicMode('processing');
+  Sound.play('printerStart');
+  Sound.loop('printerHum', 0.5);
   CAM.printer();
 
-  // AI panel
   $('aiSteps').innerHTML = '';
   hide($('aiRecipe'));
-  $('aiRecipeMeta').textContent = `Confidence ${analysis.confidence}% · ${Game.build.layers.length} layers · est. ${analysis.printSeconds}s`;
-  $('aiLayers').innerHTML = Game.build.layers.map((L) => `<li><i style="background:${CARTRIDGES[L.ing.cart].color}"></i>${L.ing.name}</li>`).join('');
+  $('aiRecipeMeta').textContent = `Confidence ${plan.confidence}% · ${build.layers.length} layers · AI quality ${plan.quality}%`;
+  $('aiLayers').innerHTML = build.layers.map((L) => `<li><i style="background:${CARTRIDGES[L.ing.cart].color}"></i>${L.ing.name}</li>`).join('');
   show($('aiPanel'));
   show($('skipBtn'));
-
   const steps = $('aiSteps');
   const finishStep = (i) => {
     const li = steps.children[i];
     if (!li || li.dataset.done) return;
     li.dataset.done = '1';
     li.querySelector('.ico').className = 'ico ok';
-    const st = analysis.steps[i];
+    const st = plan.steps[i];
     li.insertAdjacentHTML('beforeend', `<span class="res ${st.warn ? 'warn' : ''}">→ ${st.result}</span>`);
   };
 
-  Game.job = new PrintJob(printer, Game.build, analysis, AI.orderName(food, Game.made.sel), (ev, i, skipped) => {
-    const quiet = skipped;
+  Game.job = new PrintJob(printer, build, plan, Game.order.name, (ev, i, quiet) => {
     switch (ev) {
+      case 'start': if (!quiet) Sound.play('doorClose'); break;
       case 'step':
         if (i > 0) finishStep(i - 1);
-        steps.insertAdjacentHTML('beforeend', `<li><span class="ico spin"></span> ${analysis.steps[i].text}</li>`);
-        if (!quiet) Sound.play('analyze');
+        steps.insertAdjacentHTML('beforeend', `<li><span class="ico spin"></span> ${plan.steps[i].text}</li>`);
+        if (!quiet) Sound.play('beep');
         break;
-      case 'recipe':
-        finishStep(analysis.steps.length - 1);
+      case 'verified':
+        finishStep(plan.steps.length - 1);
         show($('aiRecipe'));
-        if (!quiet) Sound.play('recipe');
+        if (!quiet) Sound.play('confirm');
         break;
-      case 'printStart':
-        if (!quiet) { Sound.play('servo'); CAM.closeUp(); }
-        break;
+      case 'begin': if (!quiet) { Sound.play('servo'); Sound.loop('motor', 0.35); } break;
+      case 'printStart': if (!quiet) CAM.closeUp(); break;
       case 'layer': {
         const lis = $('aiLayers').children;
         for (let k = 0; k < lis.length; k++) lis[k].className = k < i ? 'done' : k === i ? 'now' : '';
-        if (!quiet) Sound.play('layer');
+        if (!quiet) { Sound.play('layer'); if (i % 2) Sound.play('servo'); }
         break;
       }
-      case 'finalize':
-        [...$('aiLayers').children].forEach((li) => (li.className = 'done'));
-        if (!quiet) Sound.play('servo');
-        break;
       case 'complete':
-        if (!quiet) { printer.state.flash = 1; printer.sparkle(PLATFORM.x, PLATFORM.y - 80, 40); Sound.play('complete'); CAM.printer(); }
+        [...$('aiLayers').children].forEach((li) => (li.className = 'done'));
+        Sound.loop('motor', 0);
+        if (!quiet) { printer.state.flash = 1; printer.sparkle(PLATFORM.x, PLATFORM.y - 80, 40); Sound.play('synthComplete'); CAM.printer(); }
         break;
-      case 'transfer':
-        if (!quiet) Sound.play('whoosh');
-        break;
+      case 'quality': if (!quiet) Sound.play('check'); break;
+      case 'open': if (!quiet) { Sound.play('doorOpen'); Sound.play('steam'); printer.sparkle(PLATFORM.x, PLATFORM.y - 60, 25); } break;
+      case 'transfer': if (!quiet) Sound.play('whoosh'); break;
       case 'cameraOut':
-        if (quiet) Sound.play('complete');
-        hide($('skipBtn'));
-        hide($('aiPanel'));
+        Sound.loop('motor', 0);
+        if (quiet) Sound.play('synthComplete');
+        hide($('skipBtn')); hide($('aiPanel'));
         $('stage').classList.remove('cinematic');
         CAM.reset();
         break;
       case 'end':
         Game.job = null;
+        Game.printed = build;
         Game.phase = 'ready';
-        $('ticketStatus').textContent = '✅ Food is ready on the output tray!';
+        Sound.loop('printerHum', 0);
+        Sound.setMusicMode('restaurant');
         show($('serveBtn'));
+        updateTicketStatus(true);
+        renderStationBar(true);
         printer.sparkle(TRAY.x, TRAY.y - 30, 20);
+        Game.notify('🖨 Food synthesized! Serve it from the front counter.');
         break;
     }
   });
-}
+};
 
-function skipPrint() {
-  if (Game.job) { Sound.play('click'); Game.job.skip(); }
-}
+function skipPrint() { if (Game.job) { Sound.play('click'); Game.job.skip(); } }
 
-/* ---------------- serving + reaction ---------------- */
-async function serveFood() {
+/* =========================================================
+   SERVING, REACTION, RESULTS
+   ========================================================= */
+async function serveOrder() {
   if (Game.phase !== 'ready') return;
+  if (Game.view !== 'front') goStation('front');
   Game.phase = 'serving';
   hide($('serveBtn'));
   Sound.play('whoosh');
   const plate = $('plateCanvas');
-  renderFoodToCanvas(plate, Game.build);
-  // start the plate on the printer's output tray, then fly it to the customer
+  renderFoodToCanvas(plate, Game.printed);
   plate.style.transition = 'none';
   Object.assign(plate.style, { left: '1424px', top: '612px', width: '120px', height: '100px' });
   show(plate);
   printer.clearTray();
   void plate.offsetWidth;
   plate.style.transition = '';
-  Object.assign(plate.style, { left: '250px', top: '495px', width: '180px', height: '150px' });
-  await wait(900);
+  Object.assign(plate.style, { left: '270px', top: '512px', width: '180px', height: '150px' });
+  await wait(850);
+  hide(plate);
+  Game.servedMain = Game.printed;
+  renderTray();
+  Sound.play('place');
+  await wait(350);
 
-  const result = AI.score(Game.order, Game.made, Game.printSeconds);
-  result.madeFoodId = Game.made.foodId;
-  const reaction = AI.reaction(Game.customer, Game.order, result);
+  const out = { main: Game.mainResult, side: Kitchen.side, drink: Kitchen.drinkOut };
+  const r = AI.evaluate(Game.order, out, Game.elapsed);
+  const reaction = AI.reaction(Game.customer, Game.order, r);
   Game.mood = reaction.mood;
   say(reaction.text);
-  if (result.stars >= 4) { $('customer').classList.add('bounce'); Sound.play('happy'); } else Sound.play('sad');
+  showHearts(r.stars);
+  if (r.stars >= 4) { $('customer').classList.add('bounce'); Sound.play('happy'); } else Sound.play('sad');
   setTimeout(() => $('customer').classList.remove('bounce'), 1000);
 
-  // record + reward
   const food = FOOD_BY_ID[Game.order.foodId];
   const learnt = AI.orderTags(food, Game.order.sel);
-  Game.history.push({ customerId: Game.customer.id, foodId: food.id, tags: learnt.tags, avoided: learnt.avoided, stars: result.stars });
-  Game.money += result.earned;
+  Game.history.push({ customerId: Game.customer.id, foodId: food.id, tags: learnt.tags, avoided: learnt.avoided, stars: r.stars });
+  Game.money += r.earned;
   Game.served++;
-  Game.ratings.push(result.stars);
-  const prevLevel = Game.level;
+  Game.ratings.push(r.stars);
+  const prev = Game.level;
   Game.level = LEVELS.filter((l) => Game.served >= l.ordersNeeded).pop().level;
-  Game.leveledUp = Game.level > prevLevel;
-
-  await wait(1700);
-  showResults(result, reaction, learnt);
+  Game.leveledUp = Game.level > prev;
+  hide($('stationBar'));
+  await wait(1900);
+  showResults(r, reaction, learnt);
 }
 
-function showResults(result, reaction, learnt) {
+function showHearts(n) {
+  const h = $('hearts');
+  h.innerHTML = Array.from({ length: 5 }, (_, i) => `<span class="${i < n ? 'on' : ''}" style="animation-delay:${i * 0.12}s">${i < n ? '❤️' : '🤍'}</span>`).join('');
+  hide(h); void h.offsetWidth; show(h);
+  setTimeout(() => hide(h), 2600);
+}
+
+function showResults(r, reaction, learnt) {
   Game.phase = 'results';
-  renderFoodToCanvas($('resultFood'), Game.build);
+  const cv = $('resultFood'), c = cv.getContext('2d');
+  c.clearRect(0, 0, 400, 300);
+  const b = Game.printed;
+  const s = fitScale(b, 230, 200);
+  drawFood(c, b, 200, 215 - b.bottom * s, s);
+  if (Kitchen.side) drawFood(c, buildSideFries(Kitchen.side), 62, 280, 0.42);
+  if (Kitchen.drinkOut) drawDrink(c, 345, 288, 0.62, DRINK_BY_ID[Kitchen.drinkOut.id], Kitchen.drinkOut.fill, { lid: true });
   $('resultQuote').textContent = `${Game.customer.name}: “${reaction.text}”`;
-  $('resultTitle').textContent = result.stars >= 5 ? 'PERFECT ORDER!' : result.stars >= 4 ? 'GREAT JOB!' : result.stars >= 3 ? 'ORDER COMPLETE' : 'NEEDS IMPROVEMENT';
-  $('accText').textContent = `${Math.round(result.accuracy * 100)}%`;
-  $('speedText').textContent = `${Math.round(result.seconds)}s`;
-  $('accFill').style.width = '0%';
-  $('speedFill').style.width = '0%';
-  $('stars').innerHTML = [1, 2, 3, 4, 5].map((i) => (i <= result.stars ? `<span class="lit" style="animation-delay:${0.25 + i * 0.15}s">★</span>` : '<span>★</span>')).join('');
-
-  const d = result.details;
+  $('resultHearts').innerHTML = Array.from({ length: 5 }, (_, i) => (i < r.stars ? '❤️' : '🤍')).join('');
+  $('resultTitle').textContent = r.stars >= 5 ? 'PERFECT ORDER!' : r.stars >= 4 ? 'GREAT JOB!' : r.stars >= 3 ? 'ORDER COMPLETE' : 'NEEDS IMPROVEMENT';
+  const metrics = [['acc', r.accuracy], ['cook', r.cooking], ['speed', r.speed], ['pres', r.presentation]];
+  metrics.forEach(([k, v]) => { $('m-' + k).style.width = '0%'; $('t-' + k).textContent = pct(v); $('m-' + k).className = v >= 0.9 ? 'good' : v >= 0.7 ? 'ok' : 'bad'; });
+  if (!r.cookingApplicable) $('t-cook').textContent = 'N/A';
+  $('t-total').textContent = '0%';
+  $('stars').innerHTML = [1, 2, 3, 4, 5].map((i) => (i <= r.stars ? `<span class="lit" style="animation-delay:${0.9 + i * 0.15}s">★</span>` : '<span>★</span>')).join('');
   const items = [];
-  if (result.wrongFood) items.push(`Wrong food: made ${FOOD_BY_ID[result.madeFoodId].name}, ordered ${FOOD_BY_ID[Game.order.foodId].name}`);
-  else {
-    d.missing.forEach((m) => items.push(`Missing: ${m}`));
-    d.extra.forEach((m) => items.push(`Not ordered: ${m}`));
-    d.wrong.forEach((w) => items.push(`${w.group}: wanted ${w.want}, got ${w.got}`));
-  }
-  $('mistakes').innerHTML = items.length ? items.map((t) => `<li>${t}</li>`).join('') : '<li class="good">✓ Every ingredient matched the ticket!</li>';
-  $('earnedBreakdown').innerHTML = `Order $${result.base} + speed bonus $${result.speedBonus}${result.tip ? ` + tip $${result.tip}` : ''}`;
+  if (!r.foodOk) items.push(`Wrong food: made ${r.madeFoodId ? FOOD_BY_ID[r.madeFoodId].name : 'nothing'}, ordered ${FOOD_BY_ID[Game.order.foodId].name}`);
+  r.missing.forEach((m) => items.push(`Missing: ${m}`));
+  r.extra.forEach((m) => items.push(`Not ordered: ${m}`));
+  r.cookIssues.forEach((m) => items.push(`Cooking — ${m}`));
+  r.presIssues.forEach((m) => items.push(m));
+  r.extras.forEach((m) => items.push(m));
+  if (r.speed < 1) items.push(`Took ${Math.round(r.seconds)}s (target ${r.par}s)`);
+  $('mistakes').innerHTML = items.length ? items.slice(0, 6).map((t) => `<li>${t}</li>`).join('') : '<li class="good">✓ Flawless — every detail matched the ticket!</li>';
+  $('earnedBreakdown').innerHTML = `Order $${r.base}${r.tip ? ` + tip $${r.tip}` : ''}`;
+  $('xpGain').textContent = `+${r.xp} XP`;
   const tagText = [...new Set(learnt.tags)].map((t) => (TAG_INFO[t] ? TAG_INFO[t].rec.toLowerCase() : null)).filter(Boolean);
-  $('learned').textContent = tagText.length
-    ? `🧠 AI preference memory (with permission) noted ${Game.customer.name}'s choices: ${tagText.join(', ')}.`
-    : `🧠 AI preference memory updated for ${Game.customer.name} (with permission).`;
+  $('learned').textContent = tagText.length ? `🧠 AI preference memory (with permission) noted ${Game.customer.name}'s choices: ${tagText.join(', ')}.` : `🧠 AI preference memory updated for ${Game.customer.name} (with permission).`;
   show($('results'));
-
-  requestAnimationFrame(() => {
-    $('accFill').style.width = `${result.accuracy * 100}%`;
-    $('speedFill').style.width = `${Math.max(4, result.speed * 100)}%`;
-  });
-  // count up the earnings
-  const target = result.earned;
-  const t0 = performance.now();
+  metrics.forEach(([k, v], i) => setTimeout(() => { $('m-' + k).style.width = `${Math.max(3, v * 100)}%`; Sound.play('tick'); }, 150 + i * 160));
+  const t0 = performance.now() + 500;
   const tick = (now) => {
-    const k = Math.min(1, (now - t0) / 900);
-    $('earned').textContent = `$${Math.round(target * k)}`;
-    if (k < 1) requestAnimationFrame(tick);
+    const k = Math.max(0, Math.min(1, (now - t0) / 1100));
+    $('earned').textContent = `+$${Math.round(r.earned * k)}`;
+    $('t-total').textContent = pct(r.total * k);
+    if (k < 1 && Game.phase === 'results') requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
-  setTimeout(() => { Sound.play('money'); updateHud(); $('money').classList.remove('bump'); void $('money').offsetWidth; $('money').classList.add('bump'); }, 700);
+  for (let i = 1; i <= r.stars; i++) setTimeout(() => Sound.play('star', i), 900 + i * 150);
+  setTimeout(() => { Sound.play('money'); updateHud(); $('money').classList.remove('bump'); void $('money').offsetWidth; $('money').classList.add('bump'); }, 1700);
 }
 
 async function nextOrder() {
@@ -440,18 +536,22 @@ async function nextOrder() {
   Sound.play('click');
   Game.phase = 'leaving';
   hide($('results'));
-  hide($('ticket'));
-  hide($('plateCanvas'));
+  hide($('rightCol'));
+  Game.servedMain = null;
+  Kitchen.resetOrder();
+  renderTray();
+  updateHud();
   const el = $('customer');
   el.classList.add('walking', 'leaving');
   say('Bye! 👋', 1200);
+  const steps = setInterval(() => Sound.play('step'), 340);
   if (Game.leveledUp) {
     const lvl = LEVELS[Game.level - 1];
-    const newFoods = FOODS.filter((f) => f.unlock === Game.level).map((f) => `${f.emoji} ${f.name}`).join('  ');
-    setTimeout(() => { Sound.play('levelUp'); toast(`LEVEL ${lvl.level} — ${lvl.title.toUpperCase()}!<small>New recipes unlocked: ${newFoods}</small>`, 3600); }, 400);
+    setTimeout(() => { Sound.play('levelUp'); toast(`LEVEL ${lvl.level} — ${lvl.title.toUpperCase()}!<small>Unlocked: ${lvl.unlocks}</small>`, 3800); }, 400);
     Game.leveledUp = false;
   }
   await wait(1500);
+  clearInterval(steps);
   el.style.transition = 'none';
   el.classList.remove('leaving', 'walking');
   el.classList.add('offstage');
@@ -463,14 +563,8 @@ async function nextOrder() {
 
 /* ---------------- start screen showcase: a mini printer demo ---------------- */
 const Showcase = {
-  c: $('startFood').getContext('2d'),
-  build: null, t: 0, i: 0,
-  next() {
-    const f = FOODS[this.i++ % FOODS.length];
-    const sel = AI.defaultSelection(f);
-    this.build = buildFood(f, sel);
-    this.t = 0;
-  },
+  c: $('startFood').getContext('2d'), build: null, t: 0, i: 0,
+  next() { const f = FOODS[this.i++ % FOODS.length]; this.build = buildFood(f, AI.defaultSelection(f)); this.t = 0; },
   update(dt) {
     if (!this.build) this.next();
     this.t += dt;
@@ -486,34 +580,61 @@ const Showcase = {
   },
 };
 
-/* ---------------- main loop ---------------- */
+/* =========================================================
+   MAIN LOOP
+   ========================================================= */
 let last = performance.now();
+let uiTimer = 0;
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   const t = now / 1000;
   const modalOpen = !$('aboutModal').classList.contains('hidden') || !$('ethicsModal').classList.contains('hidden');
+  try {
+    if (Game.phase === 'start') Showcase.update(dt);
+    if (Game.job) Game.job.update(dt);
+    if (!modalOpen) Kitchen.update(dt);
+    printer.update(dt);
+    if (Game.view === 'front') {
+      printer.draw();
+      drawCustomer(customerCtx, Game.customer ? Game.customer.look : CUSTOMERS[0].look, Game.mood, t);
+    } else Kitchen.draw();
 
-  if (Game.phase === 'start') Showcase.update(dt);
-  if (Game.job) Game.job.update(dt);
-  printer.update(dt);
-  printer.draw();
-  drawCustomerNow(t);
-
-  if ((Game.phase === 'ordering' || Game.phase === 'customizing') && !modalOpen) {
-    Game.elapsed += dt;
-    const left = Math.max(0, 1 - Game.elapsed / PATIENCE_SECONDS);
-    $('patienceFill').style.width = `${left * 100}%`;
-    $('patienceFill').classList.toggle('low', left < 0.3);
-    $('timer').textContent = `${Math.floor(Game.elapsed)}s`;
-    if (left === 0 && !Game.impatientShown) { Game.impatientShown = true; Game.mood = 'sad'; if (Game.phase === 'ordering') say('Um... is my food coming?', 2500); }
+    if (['cooking', 'ready'].includes(Game.phase) && !modalOpen) {
+      Game.elapsed += dt;
+      const left = Math.max(0, 1 - Game.elapsed / Game.patience);
+      $('patienceFill').style.width = `${left * 100}%`;
+      $('patienceFill').classList.toggle('low', left < 0.3);
+      $('timer').textContent = `${Math.floor(Game.elapsed)}s`;
+      if (left === 0 && !Game.impatientShown) { Game.impatientShown = true; Game.mood = 'sad'; say(pick(DIALOGUE.impatient), 3000); Game.notify(`😟 ${Game.customer.name} is getting impatient!`); }
+      Game.chatterT += dt;
+      if (Game.chatterT > 22 && Game.view === 'front' && left > 0) { Game.chatterT = 0; say(pick(['Mmm, smells futuristic!', 'Is that a 3D printer? Cool!', 'Take your time, chef!', 'I can hear it sizzling!']), 2500); }
+    }
+    uiTimer += dt;
+    if (uiTimer > 0.15 && Game.order) {
+      uiTimer = 0;
+      renderStationBar();
+      renderAiAssist();
+      updateTicketStatus();
+      const mm = Math.floor(Game.elapsed / 60), ss = Math.floor(Game.elapsed % 60);
+      $('ticketTime').textContent = `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+      if (Game.phase === 'ready') {
+        const missing = [Game.order.side && !Kitchen.side && 'fries', Game.order.drink && !Kitchen.drinkOut && 'drink'].filter(Boolean);
+        const html = missing.length ? `SERVE ORDER 🍽<small>still missing: ${missing.join(' + ')}</small>` : 'SERVE ORDER 🍽';
+        if ($('serveBtn').innerHTML !== html) $('serveBtn').innerHTML = html;
+      }
+    }
+  } catch (err) {
+    console.error(err);
   }
   requestAnimationFrame(loop);
 }
 
-/* ---------------- events ---------------- */
+/* =========================================================
+   EVENTS
+   ========================================================= */
 function startGame() {
-  Sound.init();
+  Sound.start();
   Sound.play('click');
   hide($('startScreen'));
   Game.phase = 'starting';
@@ -522,26 +643,34 @@ function startGame() {
 }
 
 $('startBtn').onclick = startGame;
-$('startOrderBtn').onclick = openCustomizer;
-$('printBtn').onclick = startPrint;
+$('takeOrderBtn').onclick = takeOrder;
 $('skipBtn').onclick = skipPrint;
-$('serveBtn').onclick = serveFood;
+$('serveBtn').onclick = serveOrder;
 $('nextBtn').onclick = nextOrder;
+$('stationBar').addEventListener('click', (e) => { const b = e.target.closest('[data-station]'); if (b) goStation(b.dataset.station); });
 const openModal = (id) => { Sound.play('click'); show($(id)); };
 $('aboutBtn').onclick = $('aboutBtn2').onclick = () => openModal('aboutModal');
 $('ethicsBtn').onclick = $('ethicsBtn2').onclick = () => openModal('ethicsModal');
-$('soundBtn').onclick = () => { const on = Sound.toggle(); $('soundBtn').textContent = on ? '🔊' : '🔇'; };
 document.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => { Sound.play('click'); hide(b.closest('.overlay')); }));
 document.querySelectorAll('#aboutModal, #ethicsModal').forEach((o) => o.addEventListener('click', (e) => { if (e.target === o) hide(o); }));
 
-$('foodGrid').addEventListener('click', (e) => { const card = e.target.closest('.food-card'); if (card) selectFood(card.dataset.food); });
-$('groups').addEventListener('click', (e) => { const b = e.target.closest('.opt'); if (b) toggleOption(b.dataset.group, b.dataset.opt); });
-$('aiSuggest').addEventListener('click', (e) => { if (e.target.id === 'applyAi') applyAiSuggestion(); });
+// volume panel
+$('soundBtn').onclick = () => { Sound.play('click'); $('volumePanel').classList.toggle('hidden'); };
+document.querySelectorAll('[data-vol]').forEach((inp) => {
+  inp.value = Sound.volume[inp.dataset.vol];
+  inp.oninput = () => Sound.setVolume(inp.dataset.vol, +inp.value);
+});
+const syncMute = () => { $('soundBtn').textContent = Sound.enabled ? '🔊' : '🔇'; $('muteBtn').textContent = Sound.enabled ? 'MUTE ALL' : 'UNMUTE'; };
+$('muteBtn').onclick = () => { Sound.toggleMute(); syncMute(); };
+syncMute();
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { hide($('aboutModal')); hide($('ethicsModal')); }
+  if (e.key === 'Escape') { hide($('aboutModal')); hide($('ethicsModal')); hide($('volumePanel')); }
   if ((e.key === ' ' || e.key === 'Enter') && Game.job) { e.preventDefault(); skipPrint(); }
+  const n = parseInt(e.key, 10);
+  if (n >= 1 && n <= STATIONS.length && ['cooking', 'ready'].includes(Game.phase)) goStation(STATIONS[n - 1].id);
 });
 
 renderMenu();
+renderTray();
 requestAnimationFrame(loop);

@@ -21,18 +21,18 @@ class Printer {
 
   reset() {
     this.state = {
-      power: 0.35, mode: 'idle', build: null, reveal: null, activeLayer: -1, activeCart: null,
+      power: 0.35, mode: 'idle', build: null, reveal: null, activeLayer: -1, activeCart: null, seal: 0, present: 0, quality: null,
       nozzle: { ...PARK }, food: null, trayBuild: null, door: 0, flash: 0, bootProgress: 0,
       screen: { title: 'AI FOOD PRINTER', lines: ['STATUS: STANDBY', 'AWAITING ORDER...'], progress: null },
       cartLevels: Object.fromEntries(CARTRIDGE_ORDER.map((k, i) => [k, 0.7 + ((i * 37) % 25) / 100])),
     };
   }
 
-  showReady(build) {
+  showReady(build, title = '') {
     const s = this.state;
-    s.mode = 'ready'; s.trayBuild = build; s.food = null; s.reveal = null; s.build = null; s.power = 0.7;
+    s.mode = 'ready'; s.trayBuild = build; s.food = null; s.reveal = null; s.build = null; s.power = 0.7; s.seal = 0; s.present = 0;
     s.activeCart = null; s.door = 0; s.nozzle = { ...PARK };
-    s.screen = { title: 'FOOD READY', lines: [build ? AI.orderName(build.food, build.sel).toUpperCase() : '', 'SERVE TO CUSTOMER  ◀◀'], progress: null };
+    s.screen = { title: 'FOOD READY', lines: [title, 'SERVE TO CUSTOMER  ◀◀'], progress: null };
   }
 
   clearTray() {
@@ -46,7 +46,10 @@ class Printer {
     this.time += dt;
     const s = this.state;
     // particles
-    for (const p of this.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt; p.life -= dt; }
+    for (const p of this.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt; p.life -= dt; if (p.steam) p.r += dt * 14; }
+    if ((s.mode === 'printing' || s.mode === 'complete') && Math.random() < dt * 6) {
+      this.particles.push({ x: PLATFORM.x + (Math.random() - 0.5) * 160, y: PLATFORM.y - 30, vx: (Math.random() - 0.5) * 10, vy: -40 - Math.random() * 30, g: 0, life: 1.4, color: 'rgba(255,255,255,0.25)', r: 6, steam: true });
+    }
     this.particles = this.particles.filter((p) => p.life > 0);
     if (s.mode === 'printing' && s.activeCart) {
       for (let i = 0; i < 2; i++) {
@@ -116,7 +119,7 @@ class Printer {
     }
 
     // particles on top
-    for (const p of this.particles) { c.globalAlpha = Math.min(1, p.life * 3); dot(c, p.x, p.y, p.r, p.color); }
+    for (const p of this.particles) { c.globalAlpha = p.steam ? Math.min(1, p.life) * 0.6 : Math.min(1, p.life * 3); dot(c, p.x, p.y, p.r, p.color); }
     c.globalAlpha = 1;
   }
 
@@ -205,6 +208,13 @@ class Printer {
       c.fillStyle = fg; c.fillRect(x, y, w, h);
     }
 
+    // presentation spotlight
+    if (s.present > 0) {
+      const sg = c.createLinearGradient(0, y, 0, PLATFORM.y);
+      sg.addColorStop(0, `rgba(255,250,220,${0.05 * s.present})`); sg.addColorStop(1, `rgba(255,250,220,${0.4 * s.present})`);
+      c.fillStyle = sg; c.beginPath(); c.moveTo(PLATFORM.x - 40, y); c.lineTo(PLATFORM.x + 40, y); c.lineTo(PLATFORM.x + 170, PLATFORM.y + 20); c.lineTo(PLATFORM.x - 170, PLATFORM.y + 20); c.closePath(); c.fill();
+    }
+    this.drawArms(c, s, t);
     // food being printed
     if (s.build && s.food && s.food.inChamber) this.drawPrintingFood(c, s, t);
 
@@ -264,6 +274,16 @@ class Printer {
     c.strokeStyle = `rgba(64,232,255,${0.3 + s.power * 0.5})`; c.lineWidth = 2;
     c.beginPath(); c.roundRect(x + 5, y + 5, w - 10, h - 10, 14); c.stroke();
 
+    // sealing glass door (slides down when synthesis starts)
+    if (s.seal > 0) {
+      const dh = h * s.seal;
+      c.fillStyle = 'rgba(160,220,255,0.18)'; c.fillRect(x + 4, y + 4, w - 8, dh - 4);
+      c.fillStyle = 'rgba(255,255,255,0.12)'; c.beginPath(); c.moveTo(x + 200, y); c.lineTo(x + 240, y); c.lineTo(x + 140, y + dh); c.lineTo(x + 100, y + dh); c.closePath(); c.fill();
+      c.fillStyle = '#a9b8c9'; c.fillRect(x + 2, y + dh - 10, w - 4, 10);
+      c.fillStyle = s.seal > 0.98 ? '#4fd06a' : '#ffd84a';
+      for (let k = 0; k < 5; k++) dot(c, x + 40 + k * 70, y + dh - 5, 3, c.fillStyle);
+      if (s.seal > 0.98) { c.font = '800 11px Orbitron, sans-serif'; c.textAlign = 'right'; c.fillStyle = '#9dffb0'; c.fillText('🔒 CHAMBER SEALED', x + w - 14, y + dh - 18); }
+    }
     // side door to output tray
     const doorH = 120 * (1 - s.door);
     c.fillStyle = '#b8c6d6'; c.fillRect(388, 440, 14, 122);
@@ -274,8 +294,37 @@ class Printer {
     if (s.build && s.food && !s.food.inChamber) drawFood(c, s.build, s.food.x, s.food.y, s.food.s, s.reveal);
   }
 
+  drawArms(c, s, t) {
+    const active = s.mode === 'printing' || s.mode === 'finalizing';
+    const ik = (bx, by, tx, ty, l1, l2, flip) => {
+      const dx = tx - bx, dy = ty - by, d = Math.min(l1 + l2 - 1, Math.hypot(dx, dy));
+      const a = Math.atan2(dy, dx), b = Math.acos((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d));
+      const a1 = a + (flip ? b : -b);
+      const ex = bx + Math.cos(a1) * l1, ey = by + Math.sin(a1) * l1;
+      return [ex, ey, bx + Math.cos(a1) * l1 + Math.cos(Math.atan2(ty - ey, tx - ex)) * l2, ey + Math.sin(Math.atan2(ty - ey, tx - ex)) * l2];
+    };
+    const targetY = s.scanY != null ? s.scanY : 330;
+    [[48, 300, -1], [374, 300, 1]].forEach(([bx, by, side], i) => {
+      const reach = active ? 70 + Math.sin(t * 5 + i * 2) * 18 : 20;
+      const tx = PLATFORM.x + side * (active ? 95 + Math.sin(t * 3 + i) * 15 : 120);
+      const ty = active ? targetY - 10 + Math.cos(t * 4 + i) * 12 : by + 60;
+      const [ex, ey, hx, hy] = ik(bx, by, side < 0 ? Math.max(bx + 20, tx - reach + 70) : Math.min(bx - 20, tx + reach - 70), ty, 80, 75, side > 0);
+      c.lineCap = 'round';
+      c.strokeStyle = '#8b9bb0'; c.lineWidth = 14; c.beginPath(); c.moveTo(bx, by); c.lineTo(ex, ey); c.lineTo(hx, hy); c.stroke();
+      c.strokeStyle = '#dfe8f2'; c.lineWidth = 8; c.beginPath(); c.moveTo(bx, by); c.lineTo(ex, ey); c.lineTo(hx, hy); c.stroke();
+      dot(c, bx, by, 12, '#56687e'); dot(c, ex, ey, 8, '#56687e'); dot(c, ex, ey, 3, active ? '#40e8ff' : '#9fb3c8');
+      // gripper / tool
+      c.save(); c.translate(hx, hy); c.rotate(Math.atan2(hy - ey, hx - ex));
+      c.fillStyle = '#56687e'; c.fillRect(0, -8, 14, 16);
+      c.strokeStyle = '#7d8fa3'; c.lineWidth = 4; const open = active ? 4 + Math.sin(t * 8 + i) * 3 : 3;
+      c.beginPath(); c.moveTo(14, -open); c.lineTo(26, -open - 3); c.moveTo(14, open); c.lineTo(26, open + 3); c.stroke();
+      if (active) { c.shadowColor = '#40e8ff'; c.shadowBlur = 12; dot(c, 28, 0, 3, '#bff8ff'); }
+      c.restore();
+    });
+  }
+
   drawPrintingFood(c, s) {
-    drawFood(c, s.build, s.food.x, s.food.y, s.food.s, s.reveal);
+    drawFood(c, s.build, s.food.x, s.food.y - s.present * (6 + Math.sin(this.time * 3) * 3), s.food.s, s.reveal);
   }
 
   drawMechanics(c, s, t) {
@@ -368,57 +417,56 @@ class Printer {
 }
 
 /* =========================================================
-   PRINT JOB — the cutscene timeline
+   PRINT JOB — the synthesis cutscene timeline
    ========================================================= */
 class PrintJob {
-  constructor(printer, build, analysis, orderName, handler) {
+  constructor(printer, build, plan, orderName, handler) {
     this.p = printer;
     this.build = build;
-    this.analysis = analysis;
+    this.plan = plan;
     this.orderName = orderName.toUpperCase();
     this.on = handler; // (eventName, payload, skipped) => void
     this.t = 0;
     this.done = false;
     const N = build.layers.length;
     const T = {};
-    T.boot = 0;
-    T.analyze = 0.9;
-    T.stepGap = 0.36;
-    T.recipe = T.analyze + analysis.steps.length * T.stepGap;
-    T.print = T.recipe + 0.7;
-    T.printDur = Math.min(5.2, Math.max(3.2, N * 0.5));
+    T.analyze = 0.8;
+    T.stepGap = 0.32;
+    T.verified = T.analyze + plan.steps.length * T.stepGap;
+    T.begin = T.verified + 0.6;
+    T.print = T.begin + 0.5;
+    T.printDur = Math.min(5.5, Math.max(3.2, N * 0.5));
     T.printEnd = T.print + T.printDur;
-    T.finalize = T.printEnd;
-    T.complete = T.finalize + 0.6;
-    T.transfer = T.complete + 0.9;
+    T.complete = T.printEnd;
+    T.quality = T.complete + 0.9;
+    T.open = T.quality + 1.0;
+    T.transfer = T.open + 1.3;
     T.transferEnd = T.transfer + 0.9;
     T.end = T.transferEnd + 0.8;
     this.T = T;
     this.layerDur = T.printDur / N;
-    // scale the food to fit the chamber
     this.scale = fitScale(build, 300, 300);
-
     this.events = [
       { t: 0, name: 'start' },
-      ...analysis.steps.map((st, i) => ({ t: T.analyze + i * T.stepGap, name: 'step', payload: i })),
-      { t: T.recipe, name: 'recipe' },
+      ...plan.steps.map((st, i) => ({ t: T.analyze + i * T.stepGap, name: 'step', payload: i })),
+      { t: T.verified, name: 'verified' },
+      { t: T.begin, name: 'begin' },
       { t: T.print, name: 'printStart' },
       ...build.layers.map((L, i) => ({ t: T.print + i * this.layerDur, name: 'layer', payload: i })),
-      { t: T.finalize, name: 'finalize' },
       { t: T.complete, name: 'complete' },
+      { t: T.quality, name: 'quality' },
+      { t: T.open, name: 'open' },
       { t: T.transfer, name: 'transfer' },
       { t: T.transferEnd, name: 'cameraOut' },
       { t: T.end, name: 'end' },
     ];
     this.nextEvent = 0;
     const s = this.p.state;
-    s.build = build; s.reveal = build.layers.map(() => 0); s.trayBuild = null;
+    s.build = build; s.reveal = build.layers.map(() => 0); s.trayBuild = null; s.quality = null;
     s.food = { x: PLATFORM.x, y: PLATFORM.y - 2, s: this.scale, inChamber: true };
   }
 
-  skip() {
-    if (this.t < this.T.transferEnd) this.seek(this.T.transferEnd, true);
-  }
+  skip() { if (this.t < this.T.transferEnd) this.seek(this.T.transferEnd, true); }
 
   seek(t, skipped) {
     this.t = t;
@@ -435,30 +483,31 @@ class PrintJob {
     if (this.t >= this.T.end) this.done = true;
   }
 
-  // Compute the printer's visual state for the current time
   apply() {
     const s = this.p.state, T = this.T, t = this.t, b = this.build, N = b.layers.length;
     const ease = (x) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x));
     s.power = 0.35 + 0.65 * ease(t / 0.7);
     s.scanY = null;
     s.activeCart = null;
+    s.seal = t < T.open ? ease(t / 0.6) : 1 - ease((t - T.open) / 0.6);
+    s.present = t >= T.open && t < T.transfer ? ease((t - T.open) / 0.5) : t >= T.transfer ? 1 - ease((t - T.transfer) / 0.4) : 0;
+    const L0 = b.layers[0];
 
     if (t < T.analyze) {
       s.mode = 'boot';
-      s.screen = { title: 'AI FOOD PRINTER', lines: ['INITIALIZING...', 'LOADING AI MODEL ▸▸▸'], progress: Math.min(1, t / T.analyze) };
-    } else if (t < T.recipe) {
+      s.screen = { title: 'AI FOOD SYNTHESIS', lines: ['SEALING CHAMBER...', 'POWERING CARTRIDGES ▸▸▸'], progress: Math.min(1, t / T.analyze) };
+    } else if (t < T.verified) {
       s.mode = 'analyzing';
-      const k = Math.floor((t - T.analyze) / T.stepGap);
-      const lines = [`ORDER: ${this.orderName}`, 'STATUS: ANALYZING...'];
-      if (k >= 2) lines.push(`INGREDIENTS: ${N}`);
-      s.screen = { title: 'AI ANALYSIS', lines, progress: (t - T.analyze) / (T.recipe - T.analyze) };
+      s.screen = { title: 'ANALYZING FOOD...', lines: [`ORDER: ${this.orderName}`, `LAYERS FOUND: ${Math.min(N, Math.round(((t - T.analyze) / (T.verified - T.analyze)) * N * 1.5))}`], progress: (t - T.analyze) / (T.verified - T.analyze) };
+    } else if (t < T.begin) {
+      s.mode = 'recipe';
+      s.screen = { title: 'RECIPE VERIFIED ✓', lines: [`ORDER: ${this.orderName}`, `${N} LAYERS · CONFIDENCE ${this.plan.confidence}%`], progress: 1, color: '#9dffb0' };
     } else if (t < T.print) {
       s.mode = 'recipe';
-      s.screen = { title: 'RECIPE GENERATED', lines: [`ORDER: ${this.orderName}`, `LAYERS: ${N}   EST. TIME: ${this.analysis.printSeconds}s`], progress: 1, color: '#9dffb0' };
-      const k = ease((t - T.recipe) / (T.print - T.recipe));
-      const L0 = b.layers[0];
+      const k = ease((t - T.begin) / (T.print - T.begin));
       const target = { x: PLATFORM.x, y: s.food.y + L0.bottom * this.scale - 22 };
       s.nozzle = { x: PARK.x + (target.x - PARK.x) * k, y: PARK.y + (target.y - PARK.y) * k };
+      s.screen = { title: 'BEGINNING SYNTHESIS', lines: ['NOZZLE CALIBRATED', 'ROBOTIC ARMS ONLINE'], progress: k };
     } else if (t < T.printEnd) {
       s.mode = 'printing';
       const tp = t - T.print;
@@ -475,22 +524,23 @@ class PrintJob {
       const pct = Math.round((tp / T.printDur) * 100);
       const bars = Math.round(pct / 10);
       s.screen = {
-        title: `PRINTING: ${'█'.repeat(bars)}${'░'.repeat(10 - bars)} ${pct}%`,
-        lines: [`LAYER ${cur + 1}/${N}: ${L.ing.name.toUpperCase()}`, `CARTRIDGE: ${CARTRIDGES[L.ing.cart].label}`],
+        title: `PRINTING ${'█'.repeat(bars)}${'░'.repeat(10 - bars)} ${pct}%`,
+        lines: [`LAYER ${cur + 1}/${N}: ${L.ing.name.toUpperCase()}`, `${CARTRIDGES[L.ing.cart].label} CARTRIDGE ▸ NOZZLE`],
         progress: null,
       };
       s.cartLevels[L.ing.cart] = Math.max(0.15, s.cartLevels[L.ing.cart] - 0.0008);
-    } else if (t < T.complete) {
-      s.mode = 'finalizing';
+    } else if (t < T.open) {
+      s.mode = t < T.quality ? 'complete' : 'quality';
       s.reveal = b.layers.map(() => 1);
-      const k = ease((t - T.finalize) / (T.complete - T.finalize));
+      const k = ease((t - T.complete) / 0.6);
       s.nozzle = { x: s.nozzle.x + (PARK.x - s.nozzle.x) * k, y: s.nozzle.y + (PARK.y - s.nozzle.y) * k };
-      s.screen = { title: 'FINALIZING FOOD...', lines: ['QUALITY CHECK: PASSED', 'SHAPING & SMOOTHING...'], progress: k };
+      if (t < T.quality) s.screen = { title: 'FOOD SYNTHESIS COMPLETE', lines: [`ORDER: ${this.orderName}`, `${N} LAYERS PRINTED`], progress: null, color: '#9dffb0' };
+      else { s.quality = this.plan.quality; s.screen = { title: `QUALITY SCORE: ${this.plan.quality}%`, lines: ['AI INSPECTION PASSED', 'OPENING CHAMBER...'], progress: this.plan.quality / 100, color: this.plan.quality >= 80 ? '#9dffb0' : '#ffd84a' }; }
     } else if (t < T.transfer) {
-      s.mode = 'complete';
+      s.mode = 'present';
       s.reveal = b.layers.map(() => 1);
       s.nozzle = { ...PARK };
-      s.screen = { title: 'PRINT COMPLETE ✓', lines: [`ORDER: ${this.orderName}`, `${N} LAYERS PRINTED`], progress: null, color: '#9dffb0' };
+      s.screen = { title: 'PRESENTING YOUR FOOD', lines: [`${this.orderName}`, `QUALITY ${this.plan.quality}% ✓`], progress: null, color: '#9dffb0' };
     } else {
       s.mode = 'transfer';
       s.reveal = b.layers.map(() => 1);
@@ -505,7 +555,7 @@ class PrintJob {
         inChamber: k < 0.5,
       };
       s.screen = { title: 'DISPENSING...', lines: ['MOVING FOOD TO OUTPUT TRAY', 'PLEASE SERVE WHILE FRESH'], progress: k };
-      if (t >= T.transferEnd) this.p.showReady(b);
+      if (t >= T.transferEnd) this.p.showReady(b, this.orderName);
     }
   }
 }

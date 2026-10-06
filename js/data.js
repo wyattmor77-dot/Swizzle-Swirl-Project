@@ -7,10 +7,10 @@
 
 // Printer cartridges. Every ingredient is printed from one of these.
 const CARTRIDGES = {
-  bread:   { label: 'GRAIN',   color: '#f2b25c' },
+  bread:   { label: 'BREAD',   color: '#f2b25c' },
   protein: { label: 'PROTEIN', color: '#d0583a' },
-  dairy:   { label: 'DAIRY',   color: '#ffd84a' },
-  veg:     { label: 'PRODUCE', color: '#4fd06a' },
+  dairy:   { label: 'CHEESE',  color: '#ffd84a' },
+  veg:     { label: 'VEGGIE',  color: '#4fd06a' },
   sauce:   { label: 'SAUCE',   color: '#ff4d6d' },
   sweet:   { label: 'SWEET',   color: '#ff8fd8' },
 };
@@ -152,7 +152,7 @@ const opt = (id, label, layers, tags = []) => ({ id, label, layers, tags });
    form:     how the renderer arranges the layers. */
 const FOODS = [
   {
-    id: 'burger', name: 'Burger', emoji: '🍔', price: 12, unlock: 1,
+    id: 'burger', name: 'Burger', emoji: '🍔', price: 12, unlock: 1, station: 'prep',
     displayName: (s) => (s.cheese === 'double' ? 'Double Cheeseburger' : s.cheese !== 'none' ? 'Cheeseburger' : 'Hamburger'),
     groups: [
       { id: 'protein', label: 'Protein', type: 'single', default: 'beef', options: [
@@ -170,7 +170,7 @@ const FOODS = [
     printing: ['bunBottom', { group: 'protein' }, { group: 'cheese' }, { group: 'toppings' }, { group: 'sauce' }, 'bunTop'],
   },
   {
-    id: 'pizza', name: 'Pizza', emoji: '🍕', price: 14, unlock: 1,
+    id: 'pizza', name: 'Pizza', emoji: '🍕', price: 14, unlock: 3, station: 'pizza',
     displayName: (s) => (s.toppings.includes('pepperoni') ? 'Pepperoni Pizza' : s.toppings.length === 0 ? 'Cheese Pizza' : 'Custom Pizza'),
     groups: [
       { id: 'sauce', label: 'Sauce', type: 'single', default: 'tomato', options: [
@@ -187,7 +187,7 @@ const FOODS = [
     printing: ['dough', { group: 'sauce' }, { group: 'cheese' }, { group: 'toppings' }, { group: 'finish' }],
   },
   {
-    id: 'tacos', name: 'Taco', emoji: '🌮', price: 9, unlock: 1,
+    id: 'tacos', name: 'Taco', emoji: '🌮', price: 9, unlock: 4, station: 'taco',
     groups: [
       { id: 'shell', label: 'Shell', type: 'single', default: 'hard', options: [
         opt('hard', 'Hard Corn', ['hardShell']), opt('soft', 'Soft Flour', ['softShell'])] },
@@ -203,7 +203,7 @@ const FOODS = [
     printing: [{ group: 'shell' }, { group: 'meat' }, { group: 'cheese' }, { group: 'veg' }, { group: 'top' }],
   },
   {
-    id: 'hotdog', name: 'Hot Dog', emoji: '🌭', price: 8, unlock: 1, form: 'wide',
+    id: 'hotdog', name: 'Hot Dog', emoji: '🌭', price: 8, unlock: 4, station: 'prep', form: 'wide',
     groups: [
       { id: 'dog', label: 'Sausage', type: 'single', default: 'beef', options: [
         opt('beef', 'Beef Frank', ['beefFrank']), opt('chicken', 'Chicken', ['chickenFrank']), opt('veggie', 'Veggie Dog', ['veggieDog'], ['veggie'])] },
@@ -215,7 +215,7 @@ const FOODS = [
     printing: ['hotdogBun', { group: 'dog' }, { group: 'toppings' }, { group: 'sauces' }],
   },
   {
-    id: 'chickensandwich', name: 'Chicken Sandwich', emoji: '🍗', price: 11, unlock: 2,
+    id: 'chickensandwich', name: 'Chicken Sandwich', emoji: '🍗', price: 11, unlock: 5, station: 'prep',
     groups: [
       { id: 'chicken', label: 'Chicken', type: 'single', default: 'crispy', options: [
         opt('crispy', 'Crispy', ['crispyChicken']), opt('grilled', 'Grilled', ['grilledChicken']), opt('spicy', 'Spicy', ['spicyChicken'], ['spicy'])] },
@@ -230,20 +230,7 @@ const FOODS = [
     printing: ['briocheBottom', { group: 'chicken' }, { group: 'cheese' }, { group: 'toppings' }, { group: 'sauce' }, 'briocheTop'],
   },
   {
-    id: 'fries', name: 'Fries', emoji: '🍟', price: 5, unlock: 2,
-    dipSlots: [[118, 8]],
-    groups: [
-      { id: 'size', label: 'Size', type: 'single', default: 'regular', options: [
-        opt('regular', 'Regular', ['friesReg']), opt('large', 'Large', ['friesLarge'], ['big'])] },
-      { id: 'season', label: 'Seasoning', type: 'single', default: 'salt', options: [
-        opt('none', 'None', []), opt('salt', 'Sea Salt', ['salt']), opt('cajun', 'Cajun', ['cajun'], ['spicy'])] },
-      { id: 'dip', label: 'Dip', type: 'single', default: 'ketchup', options: [
-        opt('none', 'None', []), opt('ketchup', 'Ketchup', ['dipKetchup']), opt('cheese', 'Cheese Sauce', ['dipCheese'], ['extra-cheese'])] },
-    ],
-    printing: ['friesBox', { group: 'size' }, { group: 'season' }, { group: 'dip' }],
-  },
-  {
-    id: 'sandwich', name: 'Sandwich', emoji: '🥪', price: 10, unlock: 2,
+    id: 'sandwich', name: 'Sandwich', emoji: '🥪', price: 10, unlock: 5, station: 'prep',
     groups: [
       { id: 'bread', label: 'Bread', type: 'single', default: 'white', options: [
         { ...opt('white', 'White', ['whiteBread']), top: ['whiteBread'] },
@@ -263,7 +250,7 @@ const FOODS = [
     printing: [{ group: 'bread' }, { group: 'meat' }, { group: 'cheese' }, { group: 'veg' }, { group: 'spread' }, { group: 'bread', key: 'top' }],
   },
   {
-    id: 'donut', name: 'Donut', emoji: '🍩', price: 4, unlock: 3,
+    id: 'donut', name: 'Donut', emoji: '🍩', price: 4, unlock: 6, station: 'dessert',
     groups: [
       { id: 'dough', label: 'Dough', type: 'single', default: 'classic', options: [
         opt('classic', 'Classic', ['donutClassic']), opt('choc', 'Chocolate', ['donutChoc'], ['sweet'])] },
@@ -275,7 +262,7 @@ const FOODS = [
     printing: [{ group: 'dough' }, { group: 'glaze' }, { group: 'top' }],
   },
   {
-    id: 'icecream', name: 'Ice Cream', emoji: '🍦', price: 6, unlock: 3,
+    id: 'icecream', name: 'Ice Cream', emoji: '🍦', price: 6, unlock: 6, station: 'dessert',
     groups: [
       { id: 'base', label: 'Holder', type: 'single', default: 'cone', options: [
         opt('cone', 'Waffle Cone', ['waffleCone']), opt('cup', 'Cup', ['iceCup'])] },
@@ -292,7 +279,7 @@ const FOODS = [
     printing: [{ group: 'base' }, { group: 'scoop1' }, { group: 'scoop2' }, { group: 'toppings' }],
   },
   {
-    id: 'pancakes', name: 'Pancakes', emoji: '🥞', price: 9, unlock: 3,
+    id: 'pancakes', name: 'Pancakes', emoji: '🥞', price: 9, unlock: 6, station: 'dessert',
     groups: [
       { id: 'stack', label: 'Stack', type: 'single', default: 'three', options: [
         opt('two', '2 Pancakes', ['pancake', 'pancake']), opt('three', '3 Pancakes', ['pancake', 'pancake', 'pancake']),
@@ -308,7 +295,7 @@ const FOODS = [
     printing: ['plate', { group: 'stack' }, { group: 'butter' }, { group: 'syrup' }, { group: 'fruit' }],
   },
   {
-    id: 'cupcake', name: 'Cupcake', emoji: '🧁', price: 5, unlock: 4,
+    id: 'cupcake', name: 'Cupcake', emoji: '🧁', price: 5, unlock: 6, station: 'dessert',
     groups: [
       { id: 'cake', label: 'Cake', type: 'single', default: 'vanilla', options: [
         opt('vanilla', 'Vanilla', ['cakeVanilla']), opt('choc', 'Chocolate', ['cakeChoc'], ['sweet']), opt('red', 'Red Velvet', ['cakeRed'])] },
@@ -320,7 +307,7 @@ const FOODS = [
     printing: ['liner', { group: 'cake' }, { group: 'frosting' }, { group: 'toppings' }],
   },
   {
-    id: 'nuggets', name: 'Chicken Nuggets', emoji: '🍗', price: 7, unlock: 4,
+    id: 'nuggets', name: 'Chicken Nuggets', emoji: '🧆', price: 7, unlock: 5, station: 'prep',
     dipSlots: [[-78, 52], [0, 62], [78, 52]],
     groups: [
       { id: 'count', label: 'Amount', type: 'single', default: 'six', options: [
@@ -335,37 +322,122 @@ const FOODS = [
 
 const FOOD_BY_ID = Object.fromEntries(FOODS.map((f) => [f.id, f]));
 
+/* =========================================================
+   COOKING DATA
+   cook:   which station cooks the ingredient before assembly
+   time:   seconds to reach PERFECT (grill items: per side)
+   colors: [raw, perfect, burnt] — the food changes colour as it cooks
+   ========================================================= */
+const COOK_INFO = {
+  beefPatty:      { cook: 'grill', time: 6, raw: 'Raw Beef Patty', colors: ['#c95a62', '#6b3a22', '#1f120c'] },
+  chickenPatty:   { cook: 'grill', time: 6.5, raw: 'Raw Chicken Patty', colors: ['#f2c9b6', '#d99a3e', '#4f2a10'] },
+  veggiePatty:    { cook: 'grill', time: 5, raw: 'Veggie Patty', colors: ['#9fc46a', '#6f8f3b', '#2c2a14'] },
+  grilledChicken: { cook: 'grill', time: 6.5, raw: 'Raw Chicken Breast', colors: ['#f4cdb8', '#c08445', '#43260e'] },
+  beefFrank:      { cook: 'grill', time: 4, raw: 'Beef Frank', colors: ['#e5897b', '#b5442c', '#331710'] },
+  chickenFrank:   { cook: 'grill', time: 4, raw: 'Chicken Frank', colors: ['#f2c3ad', '#d9825b', '#43260f'] },
+  veggieDog:      { cook: 'grill', time: 4, raw: 'Veggie Dog', colors: ['#b8a070', '#8a6a3a', '#2a1f12'] },
+  pancake:        { cook: 'grill', time: 3.5, raw: 'Pancake Batter', colors: ['#f7e7bd', '#e6a95a', '#4f2c10'] },
+  crispyChicken:  { cook: 'fryer', time: 10, raw: 'Breaded Chicken', colors: ['#f1e0bc', '#dc9d3f', '#4f2a0e'] },
+  spicyChicken:   { cook: 'fryer', time: 10, raw: 'Spicy Breaded Chicken', colors: ['#f1d0b0', '#d4622a', '#43180a'] },
+  nug6:           { cook: 'fryer', time: 8, raw: '6 Raw Nuggets', colors: ['#f1e0bc', '#dc9d3f', '#4f2a0e'] },
+  nug10:          { cook: 'fryer', time: 9, raw: '10 Raw Nuggets', colors: ['#f1e0bc', '#dc9d3f', '#4f2a0e'] },
+  donutClassic:   { cook: 'fryer', time: 7, raw: 'Classic Donut Dough', colors: ['#f7e3c0', '#e0a35a', '#4f2c10'] },
+  donutChoc:      { cook: 'fryer', time: 7, raw: 'Chocolate Donut Dough', colors: ['#b08a68', '#7a4a2a', '#24130a'] },
+  friesReg:       { cook: 'fryer', time: 8, raw: 'Raw Potato Fries', colors: ['#f6efc0', '#ffcf4a', '#8f521a'] },
+  hardShell:      { cook: 'warmer', time: 4, raw: 'Corn Shell', colors: ['#f6dc8c', '#f2bf4b', '#7a4a14'] },
+  softShell:      { cook: 'warmer', time: 4, raw: 'Flour Tortilla', colors: ['#faf0d8', '#f3dfb4', '#8a6034'] },
+  dough:          { cook: 'oven', time: 9, colors: ['#f7e6c2', '#e9b45e', '#5e3412'] },
+  mozzarella:     { cook: 'oven', time: 9, colors: ['#fffbe6', '#ffe596', '#a06a22'] },
+};
+for (const [id, info] of Object.entries(COOK_INFO)) Object.assign(INGREDIENTS[id], info);
+
+// Cooking quality bands (1.0 = perfectly cooked)
+const COOK_BANDS = [
+  { max: 0.4, label: 'RAW', score: 0.15, color: '#ff4d6d' },
+  { max: 0.75, label: 'UNDERCOOKED', score: 0.5, color: '#ff9a3d' },
+  { max: 0.9, label: 'COOKED', score: 0.85, color: '#ffd23f' },
+  { max: 1.13, label: 'PERFECT', score: 1, color: '#2fcf6a' },
+  { max: 1.38, label: 'OVERCOOKED', score: 0.6, color: '#ff9a3d' },
+  { max: 99, label: 'BURNT', score: 0.2, color: '#ff4d6d' },
+];
+const cookBand = (d) => COOK_BANDS.find((b) => d < b.max);
+
+/* SIDES & DRINKS (multi-item orders) */
+const SIDES = {
+  fries: { id: 'fries', name: 'Fries', emoji: '🍟', price: 5, seasons: [
+    { id: 'salt', label: 'Sea Salt', ing: 'salt' }, { id: 'cajun', label: 'Cajun', ing: 'cajun' }, { id: 'plain', label: 'Plain', ing: null }] },
+};
+const DRINKS = [
+  { id: 'cola', name: 'Cola', color: '#5a2614', label: 'COLA' },
+  { id: 'lemon', name: 'Lemon-Lime', color: '#c9ef7a', label: 'LEMON' },
+  { id: 'orange', name: 'Orange Fizz', color: '#ff9a2e', label: 'ORANGE' },
+  { id: 'aiade', name: 'AI-Ade', color: '#3fb8ff', label: 'AI-ADE' },
+];
+const DRINK_BY_ID = Object.fromEntries(DRINKS.map((d) => [d.id, d]));
+const DRINK_PRICE = 3;
+const DRINK_TARGET = 0.85; // fill line
+
+/* KITCHEN STATIONS (bottom navigation bar) */
+const STATIONS = [
+  { id: 'front', label: 'FRONT', icon: '🧾', desc: 'Customer, printer & serving' },
+  { id: 'grill', label: 'GRILL', icon: '🔥', desc: 'Patties, chicken, franks, pancakes' },
+  { id: 'fryer', label: 'FRYER', icon: '🍟', desc: 'Fries, crispy chicken, nuggets, donuts' },
+  { id: 'pizza', label: 'PIZZA', icon: '🍕', desc: 'Dough, toppings & oven' },
+  { id: 'taco', label: 'TACO', icon: '🌮', desc: 'Warm shells & fillings' },
+  { id: 'prep', label: 'PREP', icon: '🍔', desc: 'Burger & sandwich assembly' },
+  { id: 'dessert', label: 'DESSERT', icon: '🍨', desc: 'Sweet treats' },
+  { id: 'drinks', label: 'DRINKS', icon: '🥤', desc: 'Drink fountain' },
+];
+
 const LEVELS = [
-  { level: 1, title: 'Trainee Operator', ordersNeeded: 0 },
-  { level: 2, title: 'Print Technician', ordersNeeded: 3 },
-  { level: 3, title: 'AI Chef', ordersNeeded: 6 },
-  { level: 4, title: 'Food Futurist', ordersNeeded: 9 },
+  { level: 1, title: 'Trainee Cook', ordersNeeded: 0, unlocks: 'Burgers' },
+  { level: 2, title: 'Line Cook', ordersNeeded: 1, unlocks: 'Fries & drinks' },
+  { level: 3, title: 'Pizza Pro', ordersNeeded: 2, unlocks: 'Pizza' },
+  { level: 4, title: 'Taco Technician', ordersNeeded: 3, unlocks: 'Tacos & hot dogs' },
+  { level: 5, title: 'AI Chef', ordersNeeded: 5, unlocks: 'Chicken sandwiches, sandwiches & nuggets' },
+  { level: 6, title: 'Food Futurist', ordersNeeded: 7, unlocks: 'Donuts, ice cream, pancakes & cupcakes' },
 ];
 
 /* CUSTOMERS. prefs/avoid are tags (see options above). The AI insight
    system "learns" these by looking only at each customer's past orders. */
 const CUSTOMERS = [
-  { id: 'jack', name: 'Jack', prefs: ['extra-cheese'], avoid: [], favs: ['burger', 'pizza', 'tacos', 'sandwich', 'fries'],
-    look: { type: 'human', skin: '#f1c27d', hair: '#4a2f1d', hairStyle: 'short', shirt: '#3f8efc', acc: 'cap', accColor: '#ff4d6d' } },
-  { id: 'maya', name: 'Maya', prefs: ['veggie'], avoid: ['onion'], favs: ['pizza', 'tacos', 'sandwich', 'pancakes'],
-    look: { type: 'human', skin: '#8d5524', hair: '#1b1b1b', hairStyle: 'puffs', shirt: '#2fd1a5', acc: 'none' } },
-  { id: 'leo', name: 'Leo', prefs: ['spicy'], avoid: [], favs: ['hotdog', 'tacos', 'chickensandwich', 'fries'],
-    look: { type: 'human', skin: '#e0ac69', hair: '#c46a1a', hairStyle: 'spiky', shirt: '#ff8a3d', acc: 'glasses' } },
-  { id: 'priya', name: 'Priya', prefs: ['sweet'], avoid: ['onion'], favs: ['donut', 'icecream', 'pancakes', 'cupcake', 'pizza'],
-    look: { type: 'human', skin: '#c68642', hair: '#2a1a12', hairStyle: 'long', shirt: '#a66cff', acc: 'headphones', accColor: '#ffffff' } },
-  { id: 'b7', name: 'Unit B-7', prefs: ['big'], avoid: [], favs: ['nuggets', 'fries', 'burger', 'hotdog'],
+  { id: 'jack', name: 'Jack', personality: 'Cheese enthusiast', prefs: ['extra-cheese'], avoid: [], favs: ['burger', 'pizza', 'tacos', 'sandwich'],
+    lines: { greet: ['Hey! Load it with cheese, okay?', "Cheese makes everything better. I'll have a {food}!"], happy: ['Cheesy perfection!', 'Now THAT is a {food}!'], sad: ['Where did all the cheese go?'] },
+    look: { type: 'human', skin: '#f1c27d', hair: '#4a2f1d', hairStyle: 'short', shirt: '#3f8efc', pattern: 'hoodie', acc: 'cap', accColor: '#ff4d6d' } },
+  { id: 'maya', name: 'Maya', personality: 'Health-conscious runner', prefs: ['veggie'], avoid: ['onion'], favs: ['burger', 'pizza', 'tacos', 'sandwich', 'pancakes'],
+    lines: { greet: ['Hi! Just finished a run — {food}, please!', 'Something fresh today: a {food}.'], happy: ['So fresh! I love it.', 'Perfect fuel!'], sad: ['Hmm, that is not what I ordered...'] },
+    look: { type: 'human', skin: '#8d5524', hair: '#1b1b1b', hairStyle: 'puffs', shirt: '#2fd1a5', pattern: 'sport', acc: 'none' } },
+  { id: 'leo', name: 'Leo', personality: 'Spice lover & gamer', prefs: ['spicy'], avoid: [], favs: ['hotdog', 'tacos', 'chickensandwich', 'pizza'],
+    lines: { greet: ['Yo! One {food}. Make it spicy if you can!', 'Level up my lunch: {food}!'], happy: ['Spicy and perfect. GG!', 'Achievement unlocked: best {food}!'], sad: ['That was a bit of a fail, chef.'] },
+    look: { type: 'human', skin: '#e0ac69', hair: '#c46a1a', hairStyle: 'spiky', shirt: '#ff8a3d', pattern: 'stripes', acc: 'glasses' } },
+  { id: 'priya', name: 'Priya', personality: 'Music student with a sweet tooth', prefs: ['sweet'], avoid: ['onion'], favs: ['donut', 'icecream', 'pancakes', 'cupcake', 'pizza', 'burger'],
+    lines: { greet: ['Hi there! Can I get a {food}?', 'Sweet treat time — {food}, please!'], happy: ['This is music to my mouth!', 'Sweet! I love it!'], sad: ['That note was a little off...'] },
+    look: { type: 'human', skin: '#c68642', hair: '#2a1a12', hairStyle: 'long', shirt: '#a66cff', pattern: 'plain', acc: 'headphones', accColor: '#ffffff' } },
+  { id: 'b7', name: 'Unit B-7', personality: 'Delivery robot on break', prefs: ['big'], avoid: [], favs: ['nuggets', 'burger', 'hotdog', 'pizza'],
+    lines: { greet: ['GREETINGS. REQUESTING ONE (1) {food}.', 'BEEP. FUEL REQUIRED: {food}.'], happy: ['BEEP BOOP! MAXIMUM SATISFACTION.', 'FOOD QUALITY: OPTIMAL.'], sad: ['ERROR 404: CORRECT ORDER NOT FOUND.'] },
     look: { type: 'robot', body: '#9fb6cc', eye: '#3ff2ff', shirt: '#58708a' } },
-  { id: 'zoe', name: 'Zoe', prefs: ['extra-cheese', 'sweet'], avoid: [], favs: ['pizza', 'cupcake', 'burger', 'icecream'],
-    look: { type: 'human', skin: '#ffdbac', hair: '#f2d16b', hairStyle: 'bun', shirt: '#ff5fa2', acc: 'none' } },
-  { id: 'omar', name: 'Omar', prefs: ['spicy'], avoid: [], favs: ['chickensandwich', 'tacos', 'burger', 'nuggets'],
-    look: { type: 'human', skin: '#a1665e', hair: '#151515', hairStyle: 'curly', shirt: '#2b6cff', acc: 'beard' } },
-  { id: 'ava', name: 'Ava', prefs: ['veggie'], avoid: [], favs: ['sandwich', 'pizza', 'icecream', 'pancakes', 'donut'],
-    look: { type: 'human', skin: '#f6d0b1', hair: '#7a2f1d', hairStyle: 'long', shirt: '#ffc23d', acc: 'glasses' } },
+  { id: 'zoe', name: 'Zoe', personality: 'Food influencer', prefs: ['extra-cheese', 'sweet'], avoid: [], favs: ['pizza', 'cupcake', 'burger', 'icecream', 'donut'],
+    lines: { greet: ['OMG hi! My followers want to see a {food}!', 'Make it photogenic! One {food}!'], happy: ['This is SO going on my feed!', '10/10, posting this now!'], sad: ['Ugh, I cannot post this...'] },
+    look: { type: 'human', skin: '#ffdbac', hair: '#f2d16b', hairStyle: 'bun', shirt: '#ff5fa2', pattern: 'stars', acc: 'none' } },
+  { id: 'omar', name: 'Omar', personality: 'Calm food critic', prefs: ['spicy'], avoid: [], favs: ['chickensandwich', 'tacos', 'burger', 'nuggets', 'hotdog'],
+    lines: { greet: ['Good afternoon. I will review your {food}.', 'One {food}, please. I have high standards.'], happy: ['Exquisite. Five stars.', 'Balanced, precise... impressive.'], sad: ['I am afraid this needs work.'] },
+    look: { type: 'human', skin: '#a1665e', hair: '#151515', hairStyle: 'curly', shirt: '#2b6cff', pattern: 'jacket', acc: 'beard' } },
+  { id: 'ava', name: 'Ava', personality: 'Polite bookworm', prefs: ['veggie'], avoid: [], favs: ['sandwich', 'pizza', 'icecream', 'pancakes', 'donut', 'burger'],
+    lines: { greet: ['Hello! Could I please have a {food}?', 'One {food}, if that is alright!'], happy: ['Wonderful, thank you so much!', 'Delightful!'], sad: ['Oh... this is not quite right.'] },
+    look: { type: 'human', skin: '#f6d0b1', hair: '#7a2f1d', hairStyle: 'long', shirt: '#ffc23d', pattern: 'cardigan', acc: 'glasses' } },
 ];
 const CUSTOMER_BY_ID = Object.fromEntries(CUSTOMERS.map((c) => [c.id, c]));
 
-// First few customers are scripted so a returning customer (and an AI insight) appears early in a demo.
-const SCRIPTED_VISITS = ['jack', 'maya', 'jack', 'leo', 'jack', 'maya'];
+/* The first orders are scripted so difficulty ramps up:
+   simple burger → burger with toppings → pizza → tacos → burger + fries + drink.
+   Jack returns on order 5, which triggers the AI customer insight. */
+const SCRIPTED_VISITS = [
+  { c: 'jack', food: 'burger', sel: { protein: 'beef', cheese: 'double', toppings: [], sauce: 'ketchup' } },
+  { c: 'maya', food: 'burger' },
+  { c: 'jack', food: 'pizza' },
+  { c: 'leo', food: 'tacos' },
+  { c: 'jack', food: 'burger', side: true, drink: true },
+];
 
 const TAG_INFO = {
   'extra-cheese': { text: 'frequently orders extra cheese', rec: 'Extra Cheese' },
@@ -377,27 +449,17 @@ const TAG_INFO = {
 };
 
 const DIALOGUE = {
-  greet: [
-    'Hi! Can I get a {food}?',
-    "I'll try the AI special — one {food}, please!",
-    'One {food}, please. I heard the printer is amazing!',
-    'Hey there! {food} time!',
-    "I'm starving. {food}, please!",
-    'Could you print me a {food}?',
-  ],
-  returning: [
-    "I'm back! Another {food}, please.",
-    'Hi again! Let me get a {food}.',
-    'You know me — {food}, please!',
-  ],
-  robot: ['GREETINGS. REQUESTING ONE (1) {food}.', 'BEEP. FUEL REQUIRED: {food}.'],
-  perfect: ['10/10!', 'That looks amazing!', 'Wow, printed to perfection!', 'Exactly what I wanted!'],
+  greet: ['Hi! Can I get a {food}?', "I'll try the AI special — one {food}, please!", 'Could you make me a {food}?'],
+  returning: ["I'm back! Another {food}, please.", 'Hi again! Let me get a {food}.', 'You know me — {food}, please!'],
+  perfect: ['That was amazing!', '10/10!', 'Wow, cooked to perfection!'],
   good: ['Pretty good!', 'Really tasty!', 'Nice, almost perfect!'],
-  okay: ['Hmm, not quite what I asked for.', "It's okay, I guess."],
-  bad: ["This isn't what I ordered...", 'Uh... did the AI glitch?'],
+  okay: ['Pretty good... I guess.', "It's okay."],
+  bad: ["This isn't what I ordered...", 'Uh... did something go wrong?'],
   wrongFood: ['I ordered a {food}, not a {other}!'],
-  missingCheese: ['Could use more cheese.'],
-  missing: ['Hmm, I asked for {item}.', 'Where is the {item}?'],
-  extra: ["I didn't ask for {item}..."],
-  waiting: ['Mmm, smells futuristic!', 'Is that a 3D printer? Cool!', 'Take your time!'],
+  missing: ['I asked for {item}...', 'Where is the {item}?'],
+  extra: ['I asked for no {item}...'],
+  undercooked: ['Hmm, this is a little undercooked.'],
+  overcooked: ['This is a bit overcooked...'],
+  impatient: ['Um... is my food coming?', 'Taking a while, huh?'],
+  missingItem: ['Did you forget my {item}?'],
 };
