@@ -1,8 +1,8 @@
 /* =========================================================
    AI FOOD FACTORY — GAME CONTROLLER
    customer arrives → ticket → TAKE ORDER → cook at the
-   stations → AI quality check → 3D printer synthesis →
-   serve → reaction → score → next customer
+   stations → AI quality check → plate → serve → reaction →
+   score → (optional) PRINT IT IN REAL LIFE → next customer
    ========================================================= */
 const $ = (id) => document.getElementById(id);
 
@@ -13,10 +13,10 @@ const Game = {
   view: 'front', chatterT: 0, impatientShown: false, leveledUp: false, patience: 90,
 };
 
-const printer = new Printer($('printerCanvas'));
 const customerCtx = $('customerCanvas').getContext('2d');
 customerCtx.scale(2, 2);
 Kitchen.init();
+Irl.init();
 
 /* ---------------- stage scaling (responsive) ---------------- */
 function fitStage() {
@@ -30,11 +30,7 @@ fitStage();
 function camera(cx, cy, s, sx = 800, sy = 450) {
   $('world').style.transform = cx == null ? '' : `translate(${sx - cx * s}px, ${sy - cy * s}px) scale(${s})`;
 }
-const CAM = {
-  printer: () => camera(1300, 505, 1.08, 1050, 450),
-  closeUp: () => camera(1240, 525, 1.36, 1060, 450),
-  reset: () => camera(null),
-};
+
 
 /* ---------------- helpers ---------------- */
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -116,7 +112,7 @@ async function nextCustomer() {
     side: v.side ? { id: 'fries', season: customer.prefs.includes('spicy') ? 'cajun' : Math.random() < 0.8 ? 'salt' : 'plain' } : null,
     drink: v.drink ? pick(DRINKS).id : null,
   };
-  Game.elapsed = 0; Game.printed = null; Game.mainResult = null; Game.impatientShown = false; Game.chatterT = 0;
+  Game.elapsed = 0; Game.plated = null; Game.mainResult = null; Game.impatientShown = false; Game.chatterT = 0;
   Game.patience = 60 + resolveLayers(food, sel).filter((id) => INGREDIENTS[id].cook).length * 25 + (v.side ? 25 : 0) + (v.drink ? 15 : 0);
   Game.insight = AI.insightFor(customer.id, Game.history);
   Kitchen.resetOrder();
@@ -179,7 +175,7 @@ function renderTicket() {
 function updateTicketStatus(force) {
   const o = Game.order;
   if (!o) return;
-  const mainState = Game.printed ? 'done' : Kitchen.main ? 'qc' : '';
+  const mainState = Game.plated ? 'done' : Kitchen.main ? 'qc' : '';
   const sideDone = !!Kitchen.side, drinkDone = !!Kitchen.drinkOut;
   const sig = `${Game.orderNo}|${mainState}|${sideDone}|${drinkDone}`;
   if (!force && sig === updateTicketStatus.sig) return;
@@ -231,7 +227,7 @@ function stationStatus(id) {
   if (!o || !['cooking', 'ready', 'serving'].includes(Game.phase)) return st;
   const food = FOOD_BY_ID[o.foodId];
   const req = resolveLayers(food, o.sel);
-  const mainDone = !!(Kitchen.main || Game.printed);
+  const mainDone = !!(Kitchen.main || Game.plated);
   const left = Kitchen.neededCooked();
   if (id === 'grill') {
     const any = req.some((x) => INGREDIENTS[x].cook === 'grill');
@@ -276,11 +272,10 @@ function aiAdvice() {
   const tips = [];
   let next = '';
   if (Game.phase === 'ordering') return { next: 'Read the ticket, then press TAKE ORDER.', tips: [`I'll guide you through the ${o.name.toLowerCase()}.`, 'HUMANS CREATE · AI ASSISTS · AUTOMATION FINISHES'] };
-  if (Game.phase === 'printing') return { next: 'The 3D printer is finishing your food...', tips: [] };
   if (Game.phase === 'serving' || Game.phase === 'results') return { next: 'Serving the customer...', tips: [] };
   if (Game.phase === 'ready') {
     const left = [o.side && !Kitchen.side && 'fries at the FRYER', o.drink && !Kitchen.drinkOut && `a ${DRINK_BY_ID[o.drink].name} at DRINKS`].filter(Boolean);
-    return { next: left.length ? `Main is printed! Still needed: ${left.join(' and ')}.` : 'Everything is ready — SERVE the order at the FRONT!', tips: ['Serving fast earns a speed bonus.'] };
+    return { next: left.length ? `Main is plated! Still needed: ${left.join(' and ')}.` : 'Everything is ready — SERVE the order at the FRONT!', tips: ['Serving fast earns a speed bonus.'] };
   }
   if (Kitchen.qc) return { next: 'Scanning your food for mistakes...', tips: ['You can fix problems before printing.'] };
   const left = Kitchen.neededCooked();
@@ -333,104 +328,35 @@ function renderTray() {
   c.fillStyle = '#5fa0ff'; c.beginPath(); c.roundRect(20, 100, 380, 30, 14); c.fill();
   c.fillStyle = 'rgba(255,255,255,0.4)'; c.fillRect(40, 104, 340, 3);
   if (Kitchen.side) drawFood(c, buildSideFries(Kitchen.side), 70, 120, 0.42);
-  if (Game.servedMain) drawFood(c, Game.servedMain, 205, 118, fitScale(Game.servedMain, 170, 110) * 0.95);
+  if (Game.plated) drawFood(c, Game.plated, 205, 118, fitScale(Game.plated, 170, 110) * 0.95);
   if (Kitchen.drinkOut) drawDrink(c, 350, 124, 0.62, DRINK_BY_ID[Kitchen.drinkOut.id], Kitchen.drinkOut.fill, { lid: true });
 }
 Game.onItemReady = () => { renderTray(); updateTicketStatus(true); };
 Game.onQC = () => { renderStationBar(true); };
 
 /* =========================================================
-   3D PRINTER SYNTHESIS CUTSCENE
+   PLATING (the AI check passed → food goes on the tray)
    ========================================================= */
-Game.startPrint = function () {
+Game.plateMain = function () {
   const main = Kitchen.main;
   if (!main) return;
   const food = FOOD_BY_ID[main.foodId];
-  const qcScore = AI.qualityCheck(Game.order, main).score;
-  const build = buildFromItems(food, main.items);
-  const plan = AI.synthesisPlan(Game.order, main, build, qcScore, Game.insight);
+  Game.qcScore = AI.qualityCheck(Game.order, main).score;
+  Game.plated = buildFromItems(food, main.items);
   Game.mainResult = { ...main };
   if (main.station === 'pizza') Kitchen.pizza = { stage: 'empty', stretch: 0, items: [], bake: 0, wobble: 0 };
   else Kitchen.builds[main.station] = { foodId: null, items: [] };
   Kitchen.main = null;
-  Game.phase = 'printing';
-  goStationRaw('front');
-  hide($('insight'));
-  $('stage').classList.add('cinematic');
-  Sound.setMusicMode('processing');
-  Sound.play('printerStart');
-  Sound.loop('printerHum', 0.5);
-  CAM.printer();
-
-  $('aiSteps').innerHTML = '';
-  hide($('aiRecipe'));
-  $('aiRecipeMeta').textContent = `Confidence ${plan.confidence}% · ${build.layers.length} layers · AI quality ${plan.quality}%`;
-  $('aiLayers').innerHTML = build.layers.map((L) => `<li><i style="background:${CARTRIDGES[L.ing.cart].color}"></i>${L.ing.name}</li>`).join('');
-  show($('aiPanel'));
-  show($('skipBtn'));
-  const steps = $('aiSteps');
-  const finishStep = (i) => {
-    const li = steps.children[i];
-    if (!li || li.dataset.done) return;
-    li.dataset.done = '1';
-    li.querySelector('.ico').className = 'ico ok';
-    const st = plan.steps[i];
-    li.insertAdjacentHTML('beforeend', `<span class="res ${st.warn ? 'warn' : ''}">→ ${st.result}</span>`);
-  };
-
-  Game.job = new PrintJob(printer, build, plan, Game.order.name, (ev, i, quiet) => {
-    switch (ev) {
-      case 'start': if (!quiet) Sound.play('doorClose'); break;
-      case 'step':
-        if (i > 0) finishStep(i - 1);
-        steps.insertAdjacentHTML('beforeend', `<li><span class="ico spin"></span> ${plan.steps[i].text}</li>`);
-        if (!quiet) Sound.play('beep');
-        break;
-      case 'verified':
-        finishStep(plan.steps.length - 1);
-        show($('aiRecipe'));
-        if (!quiet) Sound.play('confirm');
-        break;
-      case 'begin': if (!quiet) { Sound.play('servo'); Sound.loop('motor', 0.35); } break;
-      case 'printStart': if (!quiet) CAM.closeUp(); break;
-      case 'layer': {
-        const lis = $('aiLayers').children;
-        for (let k = 0; k < lis.length; k++) lis[k].className = k < i ? 'done' : k === i ? 'now' : '';
-        if (!quiet) { Sound.play('layer'); if (i % 2) Sound.play('servo'); }
-        break;
-      }
-      case 'complete':
-        [...$('aiLayers').children].forEach((li) => (li.className = 'done'));
-        Sound.loop('motor', 0);
-        if (!quiet) { printer.state.flash = 1; printer.sparkle(PLATFORM.x, PLATFORM.y - 80, 40); Sound.play('synthComplete'); CAM.printer(); }
-        break;
-      case 'quality': if (!quiet) Sound.play('check'); break;
-      case 'open': if (!quiet) { Sound.play('doorOpen'); Sound.play('steam'); printer.sparkle(PLATFORM.x, PLATFORM.y - 60, 25); } break;
-      case 'transfer': if (!quiet) Sound.play('whoosh'); break;
-      case 'cameraOut':
-        Sound.loop('motor', 0);
-        if (quiet) Sound.play('synthComplete');
-        hide($('skipBtn')); hide($('aiPanel'));
-        $('stage').classList.remove('cinematic');
-        CAM.reset();
-        break;
-      case 'end':
-        Game.job = null;
-        Game.printed = build;
-        Game.phase = 'ready';
-        Sound.loop('printerHum', 0);
-        Sound.setMusicMode('restaurant');
-        show($('serveBtn'));
-        updateTicketStatus(true);
-        renderStationBar(true);
-        printer.sparkle(TRAY.x, TRAY.y - 30, 20);
-        Game.notify('🖨 Food synthesized! Serve it from the front counter.');
-        break;
-    }
-  });
+  Game.phase = 'ready';
+  renderTray();
+  Sound.play('place');
+  show($('serveBtn'));
+  updateTicketStatus(true);
+  renderStationBar(true);
+  const left = [Game.order.side && !Kitchen.side && 'fries', Game.order.drink && !Kitchen.drinkOut && 'drink'].filter(Boolean);
+  if (left.length) Game.notify(`🍽 ${food.name} plated! Still need: ${left.join(' + ')}`);
+  else { Game.notify(`🍽 ${food.name} plated! Serve it at the front.`); goStation('front'); }
 };
-
-function skipPrint() { if (Game.job) { Sound.play('click'); Game.job.skip(); } }
 
 /* =========================================================
    SERVING, REACTION, RESULTS
@@ -441,21 +367,10 @@ async function serveOrder() {
   Game.phase = 'serving';
   hide($('serveBtn'));
   Sound.play('whoosh');
-  const plate = $('plateCanvas');
-  renderFoodToCanvas(plate, Game.printed);
-  plate.style.transition = 'none';
-  Object.assign(plate.style, { left: '1424px', top: '612px', width: '120px', height: '100px' });
-  show(plate);
-  printer.clearTray();
-  void plate.offsetWidth;
-  plate.style.transition = '';
-  Object.assign(plate.style, { left: '270px', top: '512px', width: '180px', height: '150px' });
-  await wait(850);
-  hide(plate);
-  Game.servedMain = Game.printed;
-  renderTray();
+  $('trayCanvas').classList.remove('served'); void $('trayCanvas').offsetWidth; $('trayCanvas').classList.add('served');
+  await wait(700);
   Sound.play('place');
-  await wait(350);
+  await wait(300);
 
   const out = { main: Game.mainResult, side: Kitchen.side, drink: Kitchen.drinkOut };
   const r = AI.evaluate(Game.order, out, Game.elapsed);
@@ -491,7 +406,7 @@ function showResults(r, reaction, learnt) {
   Game.phase = 'results';
   const cv = $('resultFood'), c = cv.getContext('2d');
   c.clearRect(0, 0, 400, 300);
-  const b = Game.printed;
+  const b = Game.plated;
   const s = fitScale(b, 230, 200);
   drawFood(c, b, 200, 215 - b.bottom * s, s);
   if (Kitchen.side) drawFood(c, buildSideFries(Kitchen.side), 62, 280, 0.42);
@@ -517,6 +432,9 @@ function showResults(r, reaction, learnt) {
   $('xpGain').textContent = `+${r.xp} XP`;
   const tagText = [...new Set(learnt.tags)].map((t) => (TAG_INFO[t] ? TAG_INFO[t].rec.toLowerCase() : null)).filter(Boolean);
   $('learned').textContent = tagText.length ? `🧠 AI preference memory (with permission) noted ${Game.customer.name}'s choices: ${tagText.join(', ')}.` : `🧠 AI preference memory updated for ${Game.customer.name} (with permission).`;
+  $('printIrlBtn').disabled = false;
+  $('printIrlBtn').innerHTML = '🖨 PRINT IT IN REAL LIFE<small>watch the player print &amp; eat it at home</small>';
+  Game.lastResult = r;
   show($('results'));
   metrics.forEach(([k, v], i) => setTimeout(() => { $('m-' + k).style.width = `${Math.max(3, v * 100)}%`; Sound.play('tick'); }, 150 + i * 160));
   const t0 = performance.now() + 500;
@@ -537,8 +455,7 @@ async function nextOrder() {
   Game.phase = 'leaving';
   hide($('results'));
   hide($('rightCol'));
-  Game.servedMain = null;
-  Kitchen.resetOrder();
+    Kitchen.resetOrder();
   renderTray();
   updateHud();
   const el = $('customer');
@@ -594,9 +511,8 @@ function loop(now) {
     if (Game.phase === 'start') Showcase.update(dt);
     if (Game.job) Game.job.update(dt);
     if (!modalOpen) Kitchen.update(dt);
-    printer.update(dt);
+    if (Irl.active) { Irl.update(dt); Irl.draw(t); }
     if (Game.view === 'front') {
-      printer.draw();
       drawCustomer(customerCtx, Game.customer ? Game.customer.look : CUSTOMERS[0].look, Game.mood, t);
     } else Kitchen.draw();
 
@@ -608,7 +524,7 @@ function loop(now) {
       $('timer').textContent = `${Math.floor(Game.elapsed)}s`;
       if (left === 0 && !Game.impatientShown) { Game.impatientShown = true; Game.mood = 'sad'; say(pick(DIALOGUE.impatient), 3000); Game.notify(`😟 ${Game.customer.name} is getting impatient!`); }
       Game.chatterT += dt;
-      if (Game.chatterT > 22 && Game.view === 'front' && left > 0) { Game.chatterT = 0; say(pick(['Mmm, smells futuristic!', 'Is that a 3D printer? Cool!', 'Take your time, chef!', 'I can hear it sizzling!']), 2500); }
+      if (Game.chatterT > 22 && Game.view === 'front' && left > 0) { Game.chatterT = 0; say(pick(['Mmm, smells futuristic!', 'I love this game restaurant!', 'Take your time, chef!', 'I can hear it sizzling!']), 2500); }
     }
     uiTimer += dt;
     if (uiTimer > 0.15 && Game.order) {
@@ -644,9 +560,24 @@ function startGame() {
 
 $('startBtn').onclick = startGame;
 $('takeOrderBtn').onclick = takeOrder;
-$('skipBtn').onclick = skipPrint;
 $('serveBtn').onclick = serveOrder;
 $('nextBtn').onclick = nextOrder;
+$('printIrlBtn').onclick = () => {
+  if (Game.phase !== 'results' || !Game.plated) return;
+  Sound.play('click');
+  hide($('results'));
+  Game.phase = 'irl';
+  const main = Game.mainResult;
+  const plan = AI.synthesisPlan(Game.order, main, Game.plated, Game.qcScore || 1, Game.insight);
+  Irl.start(Game.plated, Game.order, plan);
+};
+Game.afterIrl = (skipped) => {
+  Game.phase = 'results';
+  $('printIrlBtn').disabled = true;
+  $('printIrlBtn').innerHTML = '✓ PRINTED &amp; EATEN IN REAL LIFE';
+  show($('results'));
+  if (!skipped) Sound.play('money');
+};
 $('stationBar').addEventListener('click', (e) => { const b = e.target.closest('[data-station]'); if (b) goStation(b.dataset.station); });
 const openModal = (id) => { Sound.play('click'); show($(id)); };
 $('aboutBtn').onclick = $('aboutBtn2').onclick = () => openModal('aboutModal');
@@ -666,7 +597,7 @@ syncMute();
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { hide($('aboutModal')); hide($('ethicsModal')); hide($('volumePanel')); }
-  if ((e.key === ' ' || e.key === 'Enter') && Game.job) { e.preventDefault(); skipPrint(); }
+  if ((e.key === ' ' || e.key === 'Enter') && Irl.active) { e.preventDefault(); Irl.finish(true); }
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= STATIONS.length && ['cooking', 'ready'].includes(Game.phase)) goStation(STATIONS[n - 1].id);
 });

@@ -1,12 +1,14 @@
 # 🤖 AI Food Factory
 
-**The future of food is here.** A playable school-project cooking game about AI-assisted food production.
+**Cook it in the game. Print it in real life.**
 
-> **HUMANS CREATE · AI ASSISTS · AUTOMATION FINISHES**
+AI Food Factory is a cooking game with a twist. You run a futuristic restaurant **inside a video game**: take orders, grill, fry, bake, stack and serve the food to your in-game customers.
 
-Customers walk into a futuristic restaurant and order food. **You** cook it: grill and flip the patties, drop fries in the fryer, stretch and bake pizzas, warm taco shells, stack burgers, and pour drinks.
-An **AI assistant** reads the ticket, recommends cooking times, suggests the stacking order and scans your finished food for mistakes.
-Then a **3D food printer** runs a short cinematic "synthesis" that rebuilds your food layer by layer before you serve it.
+Then imagine you could actually **eat** the food you see in a game. After you serve a dish, press **🖨 PRINT IT IN REAL LIFE** to watch a cutscene:
+1. The camera pulls out of the game, which is just a monitor in the player's bedroom.
+2. The computer sends the recipe down a cable to a **home 3D food printer**.
+3. AI turns the game's recipe into a real print plan, and the printer builds the food layer by layer.
+4. The player spins around in their gaming chair and eats it. Then it's back into the game.
 
 ## ▶ How to run
 
@@ -61,7 +63,8 @@ js/renderer.js    Procedural drawing of every food layer, drinks and customers (
 js/audio.js       Synthesized sound effects, looping kitchen sounds and background music
 js/ai.js          Simulated AI: orders, tickets, quality check, scoring, reactions, insights
 js/kitchen.js     The cooking stations: equipment drawing, cooking timers, buttons
-js/printer.js     The 3D food printer and the synthesis cutscene timeline
+js/printer.js     The 3D food printer drawing + its printing timeline
+js/irl.js         The "print it in real life" cutscene (bedroom, monitor, cable, player eating)
 js/game.js        Game flow, navigation, serving, results, main loop
 ```
 

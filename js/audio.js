@@ -127,6 +127,8 @@ const Sound = (() => {
     sad: () => { tone(400, 0, 0.25, 'triangle', 0.25, 300); tone(300, 0.22, 0.4, 'triangle', 0.25, 200); },
     money: () => { tone(1319, 0, 0.1, 'square', 0.12); tone(1760, 0.07, 0.35, 'square', 0.12); noise(0, 0.1, 0.06, 7000, 'highpass'); },
     tick: () => tone(2400, 0, 0.02, 'square', 0.05),
+    notify: () => { tone(988, 0, 0.12, 'sine', 0.3); tone(1319, 0.1, 0.25, 'sine', 0.3); },
+    chomp: () => { noise(0, 0.12, 0.35, 900, 'bandpass', 1.5); noise(0.08, 0.1, 0.25, 2500, 'bandpass', 2); tone(140, 0, 0.1, 'sine', 0.3, 80); },
     levelUp: () => { [392, 523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.08, 0.3, 'square', 0.12)); bell(2093, 0.45, 0.2); },
     star: (i = 0) => tone(880 * Math.pow(1.122, i), 0, 0.2, 'triangle', 0.2),
   };

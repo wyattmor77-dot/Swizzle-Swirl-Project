@@ -849,7 +849,7 @@ function ingredientIcon(id, cook) {
    CUSTOMER AVATARS (original simple characters)
    mood: neutral | happy | ecstatic | sad | angry | wow
    ========================================================= */
-function drawCustomer(c, look, mood, t) {
+function drawCustomer(c, look, mood, t, opts = {}) {
   c.clearRect(0, 0, 260, 420);
   c.lineCap = 'round';
   c.lineJoin = 'round';
@@ -872,7 +872,7 @@ function drawCustomer(c, look, mood, t) {
   // body + clothing pattern
   drawTorso(c, look, hx, breathe);
   // arms resting towards the counter
-  for (const sgn of [-1, 1]) {
+  for (const sgn of opts.raiseRight ? [-1] : [-1, 1]) {
     c.strokeStyle = shade(look.shirt, -0.12); c.lineWidth = 30;
     c.beginPath(); c.moveTo(hx + sgn * 80, 280 + breathe); c.quadraticCurveTo(hx + sgn * 104, 330, hx + sgn * 70, 372); c.stroke();
     dot(c, hx + sgn * 66, 374, 17, shade(look.skin, -0.04));

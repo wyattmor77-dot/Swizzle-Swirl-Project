@@ -105,9 +105,9 @@ button { font-family: inherit; }
 @keyframes rise { 70% { opacity: 1; } to { transform: translateY(-40px); opacity: 0; } }
 @keyframes pop { from { transform: scale(.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-.counter { position: absolute; left: 0; top: 612px; width: 1010px; height: 288px; z-index: 3; }
+.counter { position: absolute; left: 0; top: 612px; width: 1600px; height: 288px; z-index: 3; }
 .counter-top { height: 34px; background: linear-gradient(180deg, #ffffff, #d7e3f0); border-radius: 0 18px 0 0; box-shadow: 0 4px 0 var(--cyan), 0 8px 24px rgba(25,211,240,.5); }
-.counter-front { height: 254px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 52px; gap: 8px; background-image: linear-gradient(90deg, rgba(64,232,255,.12) 2px, transparent 2px), linear-gradient(180deg, #2a4a72, #18304f); background-size: 90px 100%, auto; }
+.counter-front { height: 254px; display: flex; flex-direction: column; align-items: center; padding-right: 600px; justify-content: flex-start; padding-top: 52px; gap: 8px; background-image: linear-gradient(90deg, rgba(64,232,255,.12) 2px, transparent 2px), linear-gradient(180deg, #2a4a72, #18304f); background-size: 90px 100%, auto; }
 .counter-logo { font: 800 40px var(--head); color: #bff8ff; letter-spacing: 4px; text-shadow: 0 0 16px var(--cyan-glow); }
 .counter-sub { font: 800 13px var(--head); color: var(--yellow); letter-spacing: 3px; }
 .serve-tray { position: absolute; left: 150px; top: 520px; width: 420px; height: 160px; z-index: 4; pointer-events: none; }
@@ -118,7 +118,7 @@ button { font-family: inherit; }
 .letterbox { position: absolute; left: 0; right: 0; height: 0; background: #000; z-index: 20; transition: height .7s ease; }
 .letterbox.top { top: 0; } .letterbox.bottom { bottom: 0; }
 #stage.cinematic .letterbox { height: 56px; }
-#stage.cinematic #hud, #stage.cinematic #rightCol, #stage.cinematic #stationBar, #stage.cinematic #insight { opacity: 0; pointer-events: none; }
+#stage.cinematic:not(.irl) #hud, #stage.cinematic:not(.irl) #rightCol, #stage.cinematic:not(.irl) #stationBar, #stage.cinematic #insight { opacity: 0; pointer-events: none; }
 
 /* =========================================================
    HUD
@@ -401,3 +401,66 @@ button { font-family: inherit; }
 .how i { font-style: normal; color: var(--cyan-glow); }
 .motto-start { margin-top: 14px; font: 800 14px var(--head); letter-spacing: 4px; color: var(--yellow); }
 #aboutModal, #ethicsModal { z-index: 45; }
+
+/* =========================================================
+   KITCHEN PASS (right side of the restaurant)
+   ========================================================= */
+.pass-area { position: absolute; left: 990px; top: 0; width: 610px; height: 580px; background: linear-gradient(180deg, #eaf3fd, #cfe3fb); border-left: 6px solid var(--cyan); }
+.pass-sign { position: absolute; left: 60px; top: 92px; width: 330px; text-align: center; font: 800 30px var(--head); letter-spacing: 4px; color: #ff4d8d; text-shadow: 0 0 14px #ff4d8d; animation: flicker 7s infinite; }
+.pass-window { position: absolute; left: 30px; top: 150px; width: 390px; height: 330px; border-radius: 18px; border: 12px solid #b7c5d4; overflow: hidden; background: linear-gradient(180deg, #2a3a50, #46607e); box-shadow: inset 0 0 40px rgba(0,0,0,.5), 0 10px 24px rgba(0,30,60,.2); }
+.pass-rail { position: absolute; left: 0; right: 0; top: 0; height: 16px; background: #9fb3c8; }
+.pass-rail i { position: absolute; top: 12px; width: 54px; height: 70px; background: #fffef8; box-shadow: 0 4px 8px rgba(0,0,0,.3); animation: swing 3s ease-in-out infinite; transform-origin: 50% 0; }
+.pass-rail i::before { content: ''; position: absolute; left: 8px; right: 8px; top: 12px; height: 40px; background: repeating-linear-gradient(180deg, #9aa7b4 0 3px, transparent 3px 9px); }
+.pass-rail i:nth-child(1) { left: 40px; } .pass-rail i:nth-child(2) { left: 150px; animation-delay: -1s; } .pass-rail i:nth-child(3) { left: 260px; animation-delay: -2s; }
+@keyframes swing { 50% { transform: rotate(3deg); } }
+.pass-lamps b { position: absolute; top: 100px; width: 90px; height: 120px; background: radial-gradient(ellipse at 50% 0, rgba(255,140,80,.55), transparent 70%); }
+.pass-lamps b:nth-child(1) { left: 30px; } .pass-lamps b:nth-child(2) { left: 150px; } .pass-lamps b:nth-child(3) { left: 270px; }
+.pass-shelf { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background: linear-gradient(#e8eef5, #9fb3c8); }
+.pass-chef { position: absolute; left: 150px; bottom: 40px; animation: chefMove 6s ease-in-out infinite; }
+.pc-hat { width: 50px; height: 36px; margin: 0 auto -4px; border-radius: 20px 20px 4px 4px; background: #fff; }
+.pc-head { width: 56px; height: 56px; margin: 0 auto; border-radius: 50%; background: #e0ac69; }
+.pc-body { width: 96px; height: 70px; margin-top: 4px; border-radius: 30px 30px 0 0; background: #fff; }
+@keyframes chefMove { 0%, 100% { transform: translateX(-60px); } 50% { transform: translateX(80px); } }
+.ad-screen { position: absolute; left: 440px; top: 150px; width: 150px; height: 330px; border-radius: 16px; background: linear-gradient(170deg, #2a1650, #10305a); border: 4px solid #9fb3c8; color: #fff; text-align: center; padding: 16px 10px; box-shadow: 0 0 24px rgba(255,77,141,.35); }
+.ad-title { font: 800 22px var(--head); color: var(--yellow); animation: blink 1.4s infinite; }
+.ad-icon { font-size: 22px; margin: 14px 0; }
+.ad-text { font: 800 18px/1.35 var(--head); color: #bff8ff; }
+.service-bell { position: absolute; left: 860px; top: 590px; width: 54px; height: 28px; border-radius: 28px 28px 4px 4px; background: linear-gradient(#ffe58a, #c99a2e); z-index: 4; box-shadow: 0 6px 0 #56687e; }
+.service-bell::before { content: ''; position: absolute; left: 22px; top: -8px; width: 10px; height: 8px; border-radius: 4px; background: #c99a2e; }
+
+/* =========================================================
+   PRINT IT IN REAL LIFE — cutscene
+   ========================================================= */
+#irlScene { position: absolute; inset: 0; transform-origin: 0 0; transition: transform 1.3s cubic-bezier(.6,.05,.25,1); }
+#irlBack, #irlFront { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; display: none; }
+#irlFront { pointer-events: none; }
+#irlPrinter { position: absolute; left: 65px; top: 330px; width: 235.2px; height: 310.8px; display: none; }
+#stage.irl #irlBack, #stage.irl #irlFront, #stage.irl #irlPrinter { display: block; }
+#gameView { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; overflow: hidden; transform-origin: 0 0; transition: transform 1.3s cubic-bezier(.6,.05,.25,1); background: #dfefff; }
+#stage.irl #gameView { pointer-events: none; box-shadow: 0 0 60px rgba(120,200,255,.6); }
+#stage.irl .letterbox { height: 40px; }
+.irl-prompt { position: absolute; left: 430px; top: 190px; width: 740px; z-index: 60; padding: 34px 40px; border-radius: 30px; background: rgba(11,26,46,.97); border: 6px solid var(--cyan-glow); box-shadow: 0 0 80px rgba(64,232,255,.7); color: #fff; text-align: center; animation: pop .4s cubic-bezier(.3,1.5,.6,1); }
+.ip-head { font: 800 44px var(--head); color: #bff8ff; letter-spacing: 2px; text-shadow: 0 0 16px var(--cyan-glow); }
+.ip-food { margin: 14px 0 6px; font: 900 52px var(--body); }
+.ip-sub { font: 700 26px var(--body); color: #cfeefb; }
+.ip-buttons { display: flex; justify-content: center; gap: 30px; margin-top: 26px; }
+.ip-buttons span { padding: 18px 40px; border-radius: 20px; font: 900 34px var(--body); }
+.ip-no { background: #3e5068; color: #cfe; }
+.ip-yes { background: linear-gradient(135deg, #2fcf6a, #13a39a); box-shadow: 0 8px 0 #0d7a5e; }
+.irl-prompt.clicked .ip-yes { transform: translateY(6px) scale(.96); box-shadow: 0 2px 0 #0d7a5e; filter: brightness(1.3); }
+.ip-cursor { position: absolute; left: 700px; top: 420px; font-size: 70px; color: #fff; transform: rotate(-120deg); text-shadow: 0 4px 6px rgba(0,0,0,.6); animation: cursorMove 1.2s .1s ease-in-out forwards; }
+@keyframes cursorMove { to { left: 480px; top: 300px; } }
+.irl-caption { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); z-index: 26; padding: 12px 28px; border-radius: 16px; background: rgba(0,0,0,.7); color: #fff; font: 800 26px var(--head); letter-spacing: 2px; white-space: nowrap; opacity: 0; transition: opacity .5s; pointer-events: none; }
+.irl-caption b { color: var(--yellow); }
+.irl-caption.show { opacity: 1; }
+.irl-bubble { left: 900px; top: 300px; max-width: 300px; z-index: 5; }
+.irl-hearts { left: 700px; top: 230px; z-index: 5; }
+.ai-panel.irl { left: auto; right: 36px; top: 110px; }
+.result-buttons { display: grid; grid-template-columns: 1fr 1.2fr; gap: 12px; }
+.result-buttons .btn.big { width: 100%; }
+.btn.print-irl { background: linear-gradient(135deg, #ff4d8d, #a66cff); box-shadow: 0 6px 0 #7a2d8e, 0 10px 24px rgba(255,77,141,.35); font-size: 17px; padding: 10px 14px; animation: glowP 1.6s ease-in-out infinite; }
+.btn.print-irl:disabled { animation: none; opacity: .7; }
+@keyframes glowP { 50% { box-shadow: 0 6px 0 #7a2d8e, 0 0 30px rgba(255,77,141,.8); } }
+
+.serve-tray.served { animation: serveSlide .7s ease; }
+@keyframes serveSlide { 40% { transform: translateY(-14px) scale(1.04); } }

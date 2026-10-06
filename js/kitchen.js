@@ -58,7 +58,7 @@ const Kitchen = {
     this.warmer = null;
     this.builds = { prep: { foodId: null, items: [] }, taco: { foodId: null, items: [] }, dessert: { foodId: null, items: [] } };
     this.drinkState = { cup: false, flavor: null, fill: 0, pouring: false, overflow: 0 };
-    this.main = null;      // finished main food waiting for QC / printer
+    this.main = null;      // finished main food waiting for the AI check
     this.side = null;      // boxed fries
     this.drinkOut = null;  // finished drink
     this.qc = null;        // AI quality check overlay state
@@ -325,7 +325,7 @@ const Kitchen = {
     },
     qc: {
       fix() { Kitchen.qc = null; Kitchen.main = null; Sound.play('click'); },
-      send() { Sound.play('confirm'); Kitchen.qc = null; Game.startPrint(); },
+      send() { Sound.play('confirm'); Kitchen.qc = null; Game.plateMain(); },
     },
   },
 
@@ -1183,8 +1183,8 @@ const Kitchen = {
     if (q.done && !end.innerHTML) {
       panel.querySelector('.qc-sub').textContent = 'Scan complete';
       end.innerHTML = `<div class="qc-score"><label>AI SCORE</label><span>${Math.round(r.score * 100)}%</span></div>
-        <div class="qc-ready">${r.score >= 0.6 ? 'READY FOR FINAL SYNTHESIS' : 'AI RECOMMENDS FIXING THIS ORDER'}</div>
-        <div class="qc-buttons"><button class="kbtn" data-act="qc.fix">↶ FIX IT</button><button class="kbtn go pulse" data-act="qc.send">SEND TO 3D PRINTER ▶</button></div>`;
+        <div class="qc-ready">${r.score >= 0.6 ? 'READY TO SERVE' : 'AI RECOMMENDS FIXING THIS ORDER'}</div>
+        <div class="qc-buttons"><button class="kbtn" data-act="qc.fix">↶ FIX IT</button><button class="kbtn go pulse" data-act="qc.send">🍽 PLATE IT ▶</button></div>`;
     }
   },
 };

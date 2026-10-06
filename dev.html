@@ -11,7 +11,13 @@
 <body>
   <div id="viewport">
     <div id="stage">
-      <!-- ================= FRONT OF HOUSE: restaurant + printer (the "camera" moves this) ================= -->
+      <!-- ================= THE REAL WORLD (only seen in the print-it-IRL cutscene) ================= -->
+      <div id="irlScene">
+      <canvas id="irlBack" width="3200" height="1800"></canvas>
+      <canvas id="irlPrinter" width="1120" height="1480"></canvas>
+      <!-- ================= THE GAME (shrinks onto the player's monitor during the cutscene) ================= -->
+      <div id="gameView">
+      <!-- ================= FRONT OF HOUSE: the restaurant ================= -->
       <div id="world">
         <div class="wall">
           <div class="wall-stripe"></div>
@@ -24,11 +30,16 @@
           <div class="neon-ring"><span>FUTURE<br />OF<br />FOOD</span></div>
           <div class="shelf s-a"><b></b><b></b><b></b><b></b></div>
           <div class="window"><div class="city"></div><div class="drone"></div></div>
-          <div class="motto">HUMANS CREATE · AI ASSISTS · AUTOMATION FINISHES</div>
-          <div class="lab-wall">
-            <div class="lab-sign">3D FOOD SYNTHESIS LAB</div>
-            <div class="hex-pattern"></div>
-            <div class="lab-pipes"><i></i><i></i><i></i></div>
+          <div class="motto">COOK IT IN THE GAME · PRINT IT IN REAL LIFE</div>
+          <div class="pass-area">
+            <div class="pass-sign">ORDER UP!</div>
+            <div class="pass-window">
+              <div class="pass-rail"><i></i><i></i><i></i></div>
+              <div class="pass-lamps"><b></b><b></b><b></b></div>
+              <div class="pass-shelf"></div>
+              <div class="pass-chef"><div class="pc-hat"></div><div class="pc-head"></div><div class="pc-body"></div></div>
+            </div>
+            <div class="ad-screen"><div class="ad-title">NEW!</div><div class="ad-icon">🎮 ➜ 🖨 ➜ 😋</div><div class="ad-text">PLAY IT.<br />COOK IT.<br />PRINT IT<br />AT HOME.</div></div>
           </div>
         </div>
         <div class="floor"><div class="floor-shine"></div></div>
@@ -50,12 +61,11 @@
           <div class="counter-top"></div>
           <div class="counter-front">
             <div class="counter-logo">AI FOOD FACTORY</div>
-            <div class="counter-sub">ORDER HERE • COOKED BY HUMANS • FINISHED BY AI</div>
+            <div class="counter-sub">ORDER HERE • COOKED FRESH • PRINT IT AT HOME</div>
           </div>
         </div>
         <canvas id="trayCanvas" class="serve-tray" width="840" height="320"></canvas>
-        <canvas id="plateCanvas" class="plate hidden" width="360" height="300"></canvas>
-        <canvas id="printerCanvas" width="1120" height="1480"></canvas>
+        <div class="service-bell"></div>
       </div>
 
       <!-- ================= KITCHEN STATIONS ================= -->
@@ -64,9 +74,6 @@
         <div id="stationUI"></div>
       </div>
 
-      <!-- cinematic letterbox -->
-      <div class="letterbox top"></div>
-      <div class="letterbox bottom"></div>
 
       <!-- ================= HUD ================= -->
       <header id="hud">
@@ -115,6 +122,27 @@
       <!-- ================= STATION BAR ================= -->
       <nav id="stationBar" class="station-bar hidden"></nav>
 
+      <div id="insight" class="insight hidden"></div>
+      <div id="notify" class="notify"></div>
+      <!-- the "send to printer" popup shown on the player's screen -->
+      <div id="irlPrompt" class="irl-prompt hidden">
+        <div class="ip-head">🖨 PRINT IN REAL LIFE?</div>
+        <div class="ip-food">🍔 Burger</div>
+        <div class="ip-sub">Send this food from the game to your home food printer</div>
+        <div class="ip-buttons"><span class="ip-no">CANCEL</span><span class="ip-yes">🖨 PRINT IT</span></div>
+        <div class="ip-cursor">➤</div>
+      </div>
+      </div><!-- /gameView -->
+      <canvas id="irlFront" width="3200" height="1800"></canvas>
+      <div id="irlBubble" class="bubble irl-bubble hidden"></div>
+      <div id="irlHearts" class="hearts irl-hearts hidden"></div>
+      </div><!-- /irlScene -->
+
+      <!-- cinematic letterbox -->
+      <div class="letterbox top"></div>
+      <div class="letterbox bottom"></div>
+      <div id="irlCaption" class="irl-caption"></div>
+
       <!-- ================= AI SYNTHESIS PANEL (cutscene) ================= -->
       <section id="aiPanel" class="ai-panel hidden">
         <div class="ai-title"><span class="pulse-dot"></span> AI FOOD SYNTHESIS</div>
@@ -126,9 +154,6 @@
         </div>
       </section>
       <button id="skipBtn" class="btn skip hidden">SKIP ▶▶</button>
-
-      <div id="insight" class="insight hidden"></div>
-      <div id="notify" class="notify"></div>
 
       <!-- ================= RESULTS ================= -->
       <div id="results" class="overlay hidden">
@@ -147,7 +172,10 @@
             <ul class="mistakes" id="mistakes"></ul>
             <div class="earned"><label>EARNED</label><span id="earned">+$0</span><small id="earnedBreakdown"></small><div class="xp-gain" id="xpGain"></div></div>
             <div class="learned" id="learned"></div>
-            <button class="btn primary big" id="nextBtn">NEXT CUSTOMER ▶</button>
+            <div class="result-buttons">
+              <button class="btn print-irl" id="printIrlBtn">🖨 PRINT IT IN REAL LIFE<small>see the player print &amp; eat it at home</small></button>
+              <button class="btn primary big" id="nextBtn">NEXT CUSTOMER ▶</button>
+            </div>
           </div>
         </div>
       </div>
@@ -157,18 +185,18 @@
         <div class="modal info">
           <button class="close" data-close>✕</button>
           <div class="info-badge">HOW IT WORKS</div>
-          <h2>HUMANS CREATE. AI ASSISTS. AUTOMATION FINISHES.</h2>
-          <p class="lead"><b>AI Food Factory</b> imagines how artificial intelligence could <b>assist</b> people in a restaurant: the cook makes the food, an AI checks the work and plans the process, and an automated 3D food printer does the final finishing.</p>
+          <h2>FROM THE GAME TO YOUR PLATE</h2>
+          <p class="lead">Imagine you're playing a video game and you see food you want to try — like a burger in a cooking game. <b>AI Food Factory</b> imagines a future where your computer could send that food to a <b>3D food printer at home</b>, where AI turns the game's recipe into a real meal.</p>
           <div class="how-steps">
-            <div><b>1</b><span>🧑 Customer places an order</span></div>
-            <div><b>2</b><span>👩‍🍳 Player prepares &amp; cooks the food</span></div>
-            <div><b>3</b><span>🤖 AI checks the order for mistakes</span></div>
-            <div><b>4</b><span>🧩 AI plans the best synthesis sequence</span></div>
-            <div><b>5</b><span>🖨 3D food printer finishes the meal</span></div>
-            <div><b>6</b><span>😋 Customer receives personalized food</span></div>
-            <div><b>7</b><span>📊 System evaluates the result</span></div>
+            <div><b>1</b><span>🧑 A customer orders in the game</span></div>
+            <div><b>2</b><span>👩‍🍳 You cook &amp; build the food</span></div>
+            <div><b>3</b><span>🤖 AI checks it for mistakes</span></div>
+            <div><b>4</b><span>😋 The in-game customer eats &amp; rates it</span></div>
+            <div><b>5</b><span>🖥 Want it? The computer sends the recipe</span></div>
+            <div><b>6</b><span>🖨 AI plans &amp; the home printer prints it</span></div>
+            <div><b>7</b><span>🍔 The real player eats it!</span></div>
           </div>
-          <div class="sim-banner">THIS PROTOTYPE SIMULATES AI-ASSISTED FOOD PRODUCTION.</div>
+          <div class="sim-banner">THIS PROTOTYPE SIMULATES AI-ASSISTED FOOD PRINTING.</div>
           <div class="note">
             The "AI" in this game is <b>programmed logic</b> (rules, comparisons and simple pattern counting) that <i>demonstrates</i> what an AI assistant could do.
             It is not a trained machine-learning model, it needs no internet or API key, and the game does <b>not</b> represent technology that is available today —
@@ -177,7 +205,7 @@
           <div class="tech-grid">
             <div><b>👩‍🍳 Human: cooking</b><span>Grill, fry, bake, stretch, stack and pour. Your timing and choices matter.</span></div>
             <div><b>🤖 AI: assisting</b><span>Reads the ticket, recommends cook times, suggests stacking order and flags mistakes.</span></div>
-            <div><b>🖨 Automation: finishing</b><span>The printer re-builds the food layer by layer from the AI's synthesis plan.</span></div>
+            <div><b>🖨 Print it in real life</b><span>After serving, press PRINT IT IN REAL LIFE to watch the recipe travel from the game to a home printer.</span></div>
             <div><b>💡 Personalization</b><span>With permission, the AI notices patterns in a returning customer's orders.</span></div>
             <div><b>🔍 Quality control</b><span>An AI scan checks food, ingredients, cooking and presentation before printing.</span></div>
             <div><b>🛠 Built with</b><span>HTML, CSS and JavaScript. Every food, person, machine and sound is generated by code.</span></div>
@@ -214,9 +242,9 @@
             <button class="btn ghost" id="ethicsBtn2">⚖ RESPONSIBLE AI</button>
           </div>
           <div class="how">
-            <span>🧾 Take orders</span><i>➜</i><span>🔥 Cook &amp; build</span><i>➜</i><span>🤖 AI quality check</span><i>➜</i><span>🖨 3D synthesis</span><i>➜</i><span>⭐ Serve &amp; earn</span>
+            <span>🧾 Take orders</span><i>➜</i><span>🔥 Cook &amp; build</span><i>➜</i><span>🤖 AI check</span><i>➜</i><span>⭐ Serve &amp; earn</span><i>➜</i><span>🖨 Print it IRL</span>
           </div>
-          <p class="motto-start">HUMANS CREATE · AI ASSISTS · AUTOMATION FINISHES</p>
+          <p class="motto-start">COOK IT IN THE GAME · PRINT IT IN REAL LIFE</p>
         </div>
       </div>
 
@@ -231,6 +259,7 @@
   <script src="js/ai.js"></script>
   <script src="js/printer.js"></script>
   <script src="js/kitchen.js"></script>
+  <script src="js/irl.js"></script>
   <script src="js/game.js"></script>
 </body>
 </html>

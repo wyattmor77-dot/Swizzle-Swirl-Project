@@ -231,11 +231,11 @@ const AI = {
     build.layers.forEach((l) => { if (carts[carts.length - 1] !== l.ing.cart) carts.push(l.ing.cart); });
     return {
       steps: [
-        { text: 'Reading prepared food scan...', result: `${build.layers.length} layers mapped` },
-        { text: 'Verifying recipe against ticket...', result: !cmp.foodOk ? '⚠ Different food — human decision kept' : diffs ? `⚠ ${diffs} difference${diffs > 1 ? 's' : ''} — human decision kept` : 'Recipe verified ✓', warn: !cmp.foodOk || diffs > 0 },
+        { text: 'Receiving recipe from the game...', result: `${build.layers.length} layers downloaded` },
+        { text: 'Converting game food to real ingredients...', result: 'Recipe verified ✓' },
         { text: 'Optimizing synthesis sequence...', result: carts.map((k) => CARTRIDGES[k].label).join(' → ') },
         { text: 'Calibrating cartridges...', result: `${new Set(carts).size} cartridges ready` },
-        { text: 'Applying personalization...', result: insight ? `${order.customerName}: ${insight.rec} ✓` : 'No saved preferences' },
+        { text: 'Checking allergies & food safety...', result: 'Safe to eat ✓' },
         { text: 'Beginning synthesis...', result: 'Printing layer by layer' },
       ],
       confidence: (95.5 + Math.random() * 4).toFixed(1),
