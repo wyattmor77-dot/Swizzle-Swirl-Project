@@ -13,7 +13,7 @@ Then a **3D food printer** runs a short cinematic "synthesis" that rebuilds your
 No install, no internet, no API key, no login.
 
 1. Download this repository: **Code ▸ Download ZIP**, then unzip it.
-2. Double-click **`index.html`** to open it in Chrome, Edge, Firefox or Safari.
+2. Double-click **`index.html`** to open it in Chrome, Edge, Firefox or Safari. It's a single self-contained file, so it works even if it's copied on its own.
 3. Click **START GAME**. Sound starts after the first click; use the 🔊 button to adjust music and effects.
 
 ## 🎮 How to play
@@ -51,7 +51,10 @@ Difficulty ramps up: a simple burger → a burger with toppings → pizza → ta
 ## 🗂 Project structure
 
 ```
-index.html        Page layout: restaurant, kitchen layer, HUD, ticket, panels
+index.html        THE GAME — one self-contained file (built from the files below)
+dev.html          Source page layout: restaurant, kitchen layer, HUD, ticket, panels
+tools/build.js    Bundles dev.html + css/ + js/ into index.html  (run: node tools/build.js)
+js/compat.js      Polyfills for older browsers + on-screen error message
 css/style.css     All styling and animations
 js/data.js        Foods, ingredients, cooking times, customers, levels, dialogue  ← add content here
 js/renderer.js    Procedural drawing of every food layer, drinks and customers (no image files)
@@ -64,7 +67,7 @@ js/game.js        Game flow, navigation, serving, results, main loop
 
 ### Adding a new food
 
-In `js/data.js`, add its ingredients to `INGREDIENTS` (reusing a `shape` from `renderer.js`), then add an entry to `FOODS` with its `station`, `unlock` level, customization `groups` and `printing` order. To make an ingredient cookable, add it to `COOK_INFO`. The stations, ticket, AI check, printer and scoring pick the new food up automatically.
+In `js/data.js`, add its ingredients to `INGREDIENTS` (reusing a `shape` from `renderer.js`), then add an entry to `FOODS` with its `station`, `unlock` level, customization `groups` and `printing` order. To make an ingredient cookable, add it to `COOK_INFO`. The stations, ticket, AI check, printer and scoring pick the new food up automatically. Test with `dev.html`, then run `node tools/build.js` to update `index.html`.
 
 ## 👥 Credits
 
