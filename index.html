@@ -468,12 +468,22 @@ button { font-family: inherit; }
 .ai-panel.irl { left: auto; right: 36px; top: 110px; }
 .result-buttons { display: grid; grid-template-columns: 1fr 1.2fr; gap: 12px; }
 .result-buttons .btn.big { width: 100%; }
-.btn.print-irl { background: linear-gradient(135deg, #ff4d8d, #a66cff); box-shadow: 0 6px 0 #7a2d8e, 0 10px 24px rgba(255,77,141,.35); font-size: 17px; padding: 10px 14px; animation: glowP 1.6s ease-in-out infinite; }
+.btn.print-irl { flex: none; background: linear-gradient(135deg, #ff4d8d, #a66cff); box-shadow: 0 6px 0 #7a2d8e, 0 10px 24px rgba(255,77,141,.35); font-size: 21px; padding: 16px 22px; animation: glowP 1.4s ease-in-out infinite; white-space: nowrap; }
 .btn.print-irl:disabled { animation: none; opacity: .7; }
 @keyframes glowP { 50% { box-shadow: 0 6px 0 #7a2d8e, 0 0 30px rgba(255,77,141,.8); } }
 
 .serve-tray.served { animation: serveSlide .7s ease; }
 @keyframes serveSlide { 40% { transform: translateY(-14px) scale(1.04); } }
+
+.irl-offer { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 18px; background: linear-gradient(135deg, #2a1650, #10305a); border: 3px solid #ff4d8d; box-shadow: 0 0 24px rgba(255,77,141,.35); color: #fff; animation: offerIn .5s 1.2s cubic-bezier(.3,1.5,.6,1) backwards; }
+@keyframes offerIn { from { transform: scale(.85); opacity: 0; } }
+.io-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.io-text b { font: 800 17px var(--head); letter-spacing: 1px; color: #ffd84a; }
+.io-text span { font: 700 14px/1.35 var(--body); color: #e6e0ff; }
+.irl-offer.done { border-color: var(--green); box-shadow: none; }
+.irl-offer.done .io-text b { color: #9dffb0; }
+.next-btn { font-size: 19px; padding: 12px 22px; }
+.results-right .mistakes { min-height: 0; }
 
 </style>
 </head>
@@ -650,10 +660,11 @@ button { font-family: inherit; }
             <ul class="mistakes" id="mistakes"></ul>
             <div class="earned"><label>EARNED</label><span id="earned">+$0</span><small id="earnedBreakdown"></small><div class="xp-gain" id="xpGain"></div></div>
             <div class="learned" id="learned"></div>
-            <div class="result-buttons">
-              <button class="btn print-irl" id="printIrlBtn">🖨 PRINT IT IN REAL LIFE<small>see the player print &amp; eat it at home</small></button>
-              <button class="btn primary big" id="nextBtn">NEXT CUSTOMER ▶</button>
+            <div class="irl-offer" id="irlOffer">
+              <div class="io-text"><b>🍔 WANT TO EAT THIS FOR REAL?</b><span>Send this food from the game to the player's home 3D food printer and watch them eat it.</span></div>
+              <button class="btn print-irl" id="printIrlBtn">🖨 PRINT IT IN REAL LIFE ▶</button>
             </div>
+            <button class="btn primary next-btn" id="nextBtn">NEXT CUSTOMER ▶</button>
           </div>
         </div>
       </div>
@@ -5298,7 +5309,7 @@ function aiAdvice() {
   if (Game.phase === 'serving' || Game.phase === 'results') return { next: 'Serving the customer...', tips: [] };
   if (Game.phase === 'ready') {
     const left = [o.side && !Kitchen.side && 'fries at the FRYER', o.drink && !Kitchen.drinkOut && `a ${DRINK_BY_ID[o.drink].name} at DRINKS`].filter(Boolean);
-    return { next: left.length ? `Main is plated! Still needed: ${left.join(' and ')}.` : 'Everything is ready — SERVE the order at the FRONT!', tips: ['Serving fast earns a speed bonus.'] };
+    return { next: left.length ? `Main is plated! Still needed: ${left.join(' and ')}.` : 'Everything is ready — SERVE the order at the FRONT!', tips: ['Serving fast earns a speed bonus.', 'After serving you can PRINT IT IN REAL LIFE 🖨'] };
   }
   if (Kitchen.qc) return { next: 'Scanning your food for mistakes...', tips: ['You can fix problems before printing.'] };
   const left = Kitchen.neededCooked();
@@ -5456,7 +5467,8 @@ function showResults(r, reaction, learnt) {
   const tagText = [...new Set(learnt.tags)].map((t) => (TAG_INFO[t] ? TAG_INFO[t].rec.toLowerCase() : null)).filter(Boolean);
   $('learned').textContent = tagText.length ? `🧠 AI preference memory (with permission) noted ${Game.customer.name}'s choices: ${tagText.join(', ')}.` : `🧠 AI preference memory updated for ${Game.customer.name} (with permission).`;
   $('printIrlBtn').disabled = false;
-  $('printIrlBtn').innerHTML = '🖨 PRINT IT IN REAL LIFE<small>watch the player print &amp; eat it at home</small>';
+  $('printIrlBtn').innerHTML = '🖨 PRINT IT IN REAL LIFE ▶';
+  $('irlOffer').classList.remove('done');
   Game.lastResult = r;
   show($('results'));
   metrics.forEach(([k, v], i) => setTimeout(() => { $('m-' + k).style.width = `${Math.max(3, v * 100)}%`; Sound.play('tick'); }, 150 + i * 160));
@@ -5597,7 +5609,8 @@ $('printIrlBtn').onclick = () => {
 Game.afterIrl = (skipped) => {
   Game.phase = 'results';
   $('printIrlBtn').disabled = true;
-  $('printIrlBtn').innerHTML = '✓ PRINTED &amp; EATEN IN REAL LIFE';
+  $('printIrlBtn').innerHTML = '✓ PRINTED &amp; EATEN!';
+  $('irlOffer').classList.add('done');
   show($('results'));
   if (!skipped) Sound.play('money');
 };

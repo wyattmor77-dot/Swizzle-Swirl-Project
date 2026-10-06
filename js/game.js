@@ -275,7 +275,7 @@ function aiAdvice() {
   if (Game.phase === 'serving' || Game.phase === 'results') return { next: 'Serving the customer...', tips: [] };
   if (Game.phase === 'ready') {
     const left = [o.side && !Kitchen.side && 'fries at the FRYER', o.drink && !Kitchen.drinkOut && `a ${DRINK_BY_ID[o.drink].name} at DRINKS`].filter(Boolean);
-    return { next: left.length ? `Main is plated! Still needed: ${left.join(' and ')}.` : 'Everything is ready — SERVE the order at the FRONT!', tips: ['Serving fast earns a speed bonus.'] };
+    return { next: left.length ? `Main is plated! Still needed: ${left.join(' and ')}.` : 'Everything is ready — SERVE the order at the FRONT!', tips: ['Serving fast earns a speed bonus.', 'After serving you can PRINT IT IN REAL LIFE 🖨'] };
   }
   if (Kitchen.qc) return { next: 'Scanning your food for mistakes...', tips: ['You can fix problems before printing.'] };
   const left = Kitchen.neededCooked();
@@ -433,7 +433,8 @@ function showResults(r, reaction, learnt) {
   const tagText = [...new Set(learnt.tags)].map((t) => (TAG_INFO[t] ? TAG_INFO[t].rec.toLowerCase() : null)).filter(Boolean);
   $('learned').textContent = tagText.length ? `🧠 AI preference memory (with permission) noted ${Game.customer.name}'s choices: ${tagText.join(', ')}.` : `🧠 AI preference memory updated for ${Game.customer.name} (with permission).`;
   $('printIrlBtn').disabled = false;
-  $('printIrlBtn').innerHTML = '🖨 PRINT IT IN REAL LIFE<small>watch the player print &amp; eat it at home</small>';
+  $('printIrlBtn').innerHTML = '🖨 PRINT IT IN REAL LIFE ▶';
+  $('irlOffer').classList.remove('done');
   Game.lastResult = r;
   show($('results'));
   metrics.forEach(([k, v], i) => setTimeout(() => { $('m-' + k).style.width = `${Math.max(3, v * 100)}%`; Sound.play('tick'); }, 150 + i * 160));
@@ -574,7 +575,8 @@ $('printIrlBtn').onclick = () => {
 Game.afterIrl = (skipped) => {
   Game.phase = 'results';
   $('printIrlBtn').disabled = true;
-  $('printIrlBtn').innerHTML = '✓ PRINTED &amp; EATEN IN REAL LIFE';
+  $('printIrlBtn').innerHTML = '✓ PRINTED &amp; EATEN!';
+  $('irlOffer').classList.add('done');
   show($('results'));
   if (!skipped) Sound.play('money');
 };
